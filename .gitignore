@@ -1,0 +1,9 @@
+.vscode
+*.o
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+obj/
+webserv
