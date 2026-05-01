@@ -1,6 +1,21 @@
 #ifndef _ROUTE_HPP_
 #define _ROUTE_HPP_
 
+#include <algorithm>
+#include <iostream>
+#include <string>
+
+typedef enum Method
+{
+	GET,
+	POST,
+	DELETE,
+	PUT,
+	PATCH,
+	HEAD,
+	OPTIONS
+} t_method;
+
 /**
  * @brief The Route class represents a route configuration for a web server. It contains information about the path, allowed methods, root directory, index file, autoindex setting, redirect configuration, upload path, and CGI configuration for a specific route.
  * @example
@@ -15,35 +30,48 @@ class Route
 {
 private:
 	std::string path;
-	std::vector<std::string> methods;
+	std::set<t_method> methods;
 	std::string root;
 	std::string index;
 	bool autoindex;
 	std::pair<int, std::string> redirect;
-	std::string upload_path;
 	std::pair<std::string, std::string> cgi;
+
 public:
 	Route();
 	~Route();
 
-	// Getters and setters for the Route class
-	const std::string& getPath() const;
-	const std::vector<std::string>& getMethods() const;
-	const std::string& getRoot() const;
-	const std::string& getIndex() const;
-	bool isAutoindex() const;
-	const std::pair<int, std::string>& getRedirect() const;
-	const std::string& getUploadPath() const;
-	const std::pair<std::string, std::string>& getCgi() const;
+	//* Getters and setters for the Route class
 
-	void setPath(const std::string& path);
-	void setMethods(const std::vector<std::string>& methods);
-	void setRoot(const std::string& root);
-	void setIndex(const std::string& index);
+	const std::string &getPath() const;
+	const std::set<t_method> &getMethods() const;
+	const std::string &getRoot() const;
+	const std::string &getIndex() const;
+	bool isAutoindex() const;
+	const std::pair<int, std::string> &getRedirect() const;
+	const std::pair<std::string, std::string> &getCgi() const;
+
+	void setPath(const std::string &path);
+	void insertMethod(const t_method method);
+	void setRoot(const std::string &root);
+	void setIndex(const std::string &index);
 	void setAutoindex(bool autoindex);
-	void setRedirect(const std::pair<int, std::string>& redirect);
-	void setUploadPath(const std::string& upload_path);
-	void setCgi(const std::pair<std::string, std::string>& cgi);
+	void setRedirect(const std::pair<int, std::string> &redirect);
+	void setCgi(const std::pair<std::string, std::string> &cgi);
+
+	void checkRouteIsValid() const;
+
+	//* Exceptions
+
+	class LocationAttributeException : public std::exception
+	{
+	private:
+		std::string attribute;
+
+	public:
+		LocationAttributeException(const std::string &attribute);
+		virtual const char *what() const throw();
+	};
 };
 
 #endif

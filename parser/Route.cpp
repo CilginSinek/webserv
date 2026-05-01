@@ -1,0 +1,121 @@
+#include "../includes/Route.hpp"
+
+//* Constructor and Destructor
+
+Route::Route() : autoindex(false), redirect(std::make_pair(0, "")), cgi(std::make_pair("", ""))
+{
+	this->path = "";
+	this->root = "";
+	this->index = "";
+	this->methods.clear();
+}
+
+Route::~Route()
+{
+}
+
+//* Getters and Setters
+
+const std::string &Route::getPath() const
+{
+	return this->path;
+}
+
+const std::set<t_method> &Route::getMethods() const
+{
+	return this->methods;
+}
+
+const std::string &Route::getRoot() const
+{
+	return this->root;
+}
+
+const std::string &Route::getIndex() const
+{
+	return this->index;
+}
+
+bool Route::isAutoindex() const
+{
+	return this->autoindex;
+}
+
+const std::pair<int, std::string> &Route::getRedirect() const
+{
+	return this->redirect;
+}
+
+const std::pair<std::string, std::string> &Route::getCgi() const
+{
+	return this->cgi;
+}
+
+void Route::setPath(const std::string &path)
+{
+	this->path = path;
+}
+
+void Route::insertMethod(const t_method method)
+{
+	if (method < GET || method > OPTIONS)
+		throw LocationAttributeException("Invalid HTTP method");
+	auto result = this->methods.insert(method);
+	if (!result.second)
+		throw LocationAttributeException("Duplicate HTTP method");
+}
+
+void Route::setRoot(const std::string &root)
+{
+	this->root = root;
+}
+
+void Route::setIndex(const std::string &index)
+{
+	this->index = index;
+}
+
+void Route::setAutoindex(bool autoindex)
+{
+	this->autoindex = autoindex;
+}
+
+void Route::setRedirect(const std::pair<int, std::string> &redirect)
+{
+	this->redirect = redirect;
+}
+
+void Route::setCgi(const std::pair<std::string, std::string> &cgi)
+{
+	this->cgi = cgi;
+}
+
+void Route::checkRouteIsValid() const
+{
+	if (this->path.empty())
+		throw LocationAttributeException("The path is missing");
+	if (!this->index.empty() && this->root.empty())
+		throw LocationAttributeException("root missing in index configuration");
+	if (!this->cgi.first.empty() && this->root.empty())
+		throw LocationAttributeException("root missing in CGI configuration");
+	if (this->autoindex && this->root.empty())
+		throw LocationAttributeException("root missing in autoindex configuration");
+	if (this->autoindex && (!this->index.empty() || !this->cgi.first.empty()))
+		throw LocationAttributeException("autoindex cannot be enabled with index or CGI configuration");
+	if (!this->index.empty() && !this->cgi.first.empty())
+		throw LocationAttributeException("index and CGI configuration cannot be enabled at the same time");
+	if (this->index.empty() && this->cgi.first.empty() && !this->autoindex && this->redirect.first == 0)
+		throw LocationAttributeException("The route must have at least one of the following attributes: index, autoindex, redirect or CGI");
+}
+
+//* Exceptions
+
+Route::LocationAttributeException::LocationAttributeException(const std::string &attribute) : attribute(attribute)
+{
+}
+
+const char *Route::LocationAttributeException::what() const throw()
+{
+	std::string message = "Invalid location attribute: " + this->attribute;
+	return message.c_str();
+}
