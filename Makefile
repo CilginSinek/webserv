@@ -1,11 +1,17 @@
 NAME=webserv
 CXX=c++
-CXXFLAGS=-Wall -Wextra -Werror -std=c++98
-SRCS=main.cpp
+CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g
+SRCS=main.cpp $(PARSER_SRCS) $(UTILS_SRCS)
 OBJ_DIR=obj
 OBJS=$(addprefix $(OBJ_DIR)/,$(SRCS:.cpp=.o))
 RM=rm -f
 RMDIR=rm -rf
+
+UTILS_SRCS=utils/Utils.cpp
+
+PARSER_SRCS=parser/Config.cpp \
+			parser/Server.cpp \
+			parser/Route.cpp
 
 all: $(NAME)
 

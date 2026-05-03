@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
+#include <vector>
+#include <set>
 
 typedef enum Method
 {
@@ -45,6 +47,7 @@ public:
 
 	const std::string &getPath() const;
 	const std::set<t_method> &getMethods() const;
+	bool hasMethod(const t_method method) const;
 	const std::string &getRoot() const;
 	const std::string &getIndex() const;
 	bool isAutoindex() const;
@@ -70,6 +73,7 @@ public:
 
 	public:
 		LocationAttributeException(const std::string &attribute);
+		virtual ~LocationAttributeException() throw();
 		virtual const char *what() const throw();
 	};
 };
