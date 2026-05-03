@@ -17,6 +17,8 @@ int main(int argc, char const *argv[])
 			std::cout << "Config file '" << argv[1] << "' parsed successfully." << std::endl;
 			configPrinter(config);
 			std::cout << "Config file '" << argv[1] << "' printed successfully." << std::endl;
+			config.checkConfigIsValid();
+			std::cout << "Config file '" << argv[1] << "' is valid." << std::endl;
 		}
 		catch (const std::exception &e)
 		{
@@ -32,6 +34,8 @@ int main(int argc, char const *argv[])
 			std::cout << "Default config created successfully." << std::endl;
 			configPrinter(config);
 			std::cout << "Default config printed successfully." << std::endl;
+			config.checkConfigIsValid();
+			std::cout << "Default config is valid." << std::endl;
 		}
 		catch (const std::exception &e)
 		{

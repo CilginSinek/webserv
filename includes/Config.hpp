@@ -15,6 +15,7 @@ public:
 	Config();
 	Config(const std::string& config_file);
 	~Config();
+	void checkConfigIsValid() const;
 	const std::vector<Server> &getServers() const;
 
 };

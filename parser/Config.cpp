@@ -380,6 +380,15 @@ const std::vector<Server> &Config::getServers() const
 	return this->servers;
 }
 
+void Config::checkConfigIsValid() const
+{
+	for (size_t i = 0; i < this->servers.size(); i++)
+	{
+		this->servers[i].checkIsValidServer();
+	}
+}
+
+
 void configPrinter(const Config &config)
 {
 	const std::vector<Server> &servers = config.getServers();
@@ -435,3 +444,4 @@ void configPrinter(const Config &config)
 		std::cout << std::endl;
 	}
 }
+
