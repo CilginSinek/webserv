@@ -7,11 +7,18 @@ class Config
 {
 private:
 	std::vector<Server> servers;
+
+	void parseConfig(Config &cf, const std::vector<std::string> &tokens);
+	void parseServerAttr(Config &cf, const std::vector<std::string> &tokens, size_t &i);
+	void parseRoute(Config &cf, const std::vector<std::string> &tokens, size_t &i);
 public:
 	Config();
 	Config(const std::string& config_file);
 	~Config();
+	const std::vector<Server> &getServers() const;
 
 };
+
+void configPrinter(const Config &config);
 
 #endif

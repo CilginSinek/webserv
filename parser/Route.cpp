@@ -36,6 +36,11 @@ const std::string &Route::getIndex() const
 	return this->index;
 }
 
+bool Route::hasMethod(const t_method method) const
+{
+	return this->methods.find(method) != this->methods.end();
+}
+
 bool Route::isAutoindex() const
 {
 	return this->autoindex;
@@ -60,8 +65,8 @@ void Route::insertMethod(const t_method method)
 {
 	if (method < GET || method > OPTIONS)
 		throw LocationAttributeException("Invalid HTTP method");
-	auto result = this->methods.insert(method);
-	if (!result.second)
+	bool result = this->methods.insert(method).second;
+	if (!result)
 		throw LocationAttributeException("Duplicate HTTP method");
 }
 
@@ -111,6 +116,10 @@ void Route::checkRouteIsValid() const
 //* Exceptions
 
 Route::LocationAttributeException::LocationAttributeException(const std::string &attribute) : attribute(attribute)
+{
+}
+
+Route::LocationAttributeException::~LocationAttributeException() throw()
 {
 }
 
