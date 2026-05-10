@@ -1,10 +1,10 @@
-#ifndef _SERVER_HPP_
-#define _SERVER_HPP_
+#ifndef _SERVERCONFIG_HPP_
+#define _SERVERCONFIG_HPP_
 
 #include "Route.hpp"
 #include <map>
 
-class Server
+class ServerConfig
 {
 private:
 	std::string server_ip;
@@ -17,8 +17,8 @@ private:
 	//* Routes are stored in a map where the key is the path and the value is a route object.
 	std::map<std::string, Route> routes;
 public:
-	Server();
-	~Server();
+	ServerConfig();
+	~ServerConfig();
 
 	//* Getters and setters for the Server class
 	const std::string &getServerIp() const;

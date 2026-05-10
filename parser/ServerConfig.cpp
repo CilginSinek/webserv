@@ -1,7 +1,8 @@
-#include "../includes/Server.hpp"
+#include "../includes/ServerConfig.hpp"
 #include "../includes/Utils.hpp"
+
 //* Constructor and Destructor
-Server::Server() : keepalive_timeout(0)
+ServerConfig::ServerConfig() : keepalive_timeout(0)
 {
 	this->server_ip = "0.0.0.0";
 	this->port = 3131;
@@ -11,63 +12,63 @@ Server::Server() : keepalive_timeout(0)
 	this->client_max_body_size = 1048576; // Default to 1MB
 }
 
-Server::~Server()
+ServerConfig::~ServerConfig()
 {
 }
 
 //* Getters and Setters
 
-const std::string &Server::getServerIp() const
+const std::string &ServerConfig::getServerIp() const
 {
 	return this->server_ip;
 }
 
-int Server::getPort() const
+int ServerConfig::getPort() const
 {
 	return this->port;
 }
 
-const std::string &Server::getServerName() const
+const std::string &ServerConfig::getServerName() const
 {
 	return this->server_name;
 }
 
-const std::map<int, std::string> &Server::getErrorPages() const
+const std::map<int, std::string> &ServerConfig::getErrorPages() const
 {
 	return this->error_pages;
 }
 
-int Server::getKeepaliveTimeout() const
+int ServerConfig::getKeepaliveTimeout() const
 {
 	return this->keepalive_timeout;
 }
 
-const std::map<std::string, Route> &Server::getRoutes() const
+const std::map<std::string, Route> &ServerConfig::getRoutes() const
 {
 	return this->routes;
 }
 
-size_t Server::getClientMaxBodySize() const
+size_t ServerConfig::getClientMaxBodySize() const
 {
 	return this->client_max_body_size;
 }
 
-void Server::setServerIp(const std::string &server_ip)
+void ServerConfig::setServerIp(const std::string &server_ip)
 {
 	this->server_ip = server_ip;
 }
 
-void Server::setPort(int port)
+void ServerConfig::setPort(int port)
 {
 	this->port = port;
 }
 
-void Server::setServerName(const std::string &server_name)
+void ServerConfig::setServerName(const std::string &server_name)
 {
 	this->server_name = server_name;
 }
 
-void Server::insertErrorPage(int status_code, const std::string &path)
+void ServerConfig::insertErrorPage(int status_code, const std::string &path)
 {
 	if (status_code < 400 || status_code > 599)
 		throw ServerConfigException("Invalid status code for error page: " + ft_itos(status_code));
@@ -76,17 +77,17 @@ void Server::insertErrorPage(int status_code, const std::string &path)
 		throw ServerConfigException("Duplicate status code for error page: " + ft_itos(status_code));
 }
 
-void Server::setKeepaliveTimeout(int keepalive_timeout)
+void ServerConfig::setKeepaliveTimeout(int keepalive_timeout)
 {
 	this->keepalive_timeout = keepalive_timeout;
 }
 
-void Server::setClientMaxBodySize(size_t client_max_body_size)
+void ServerConfig::setClientMaxBodySize(size_t client_max_body_size)
 {
 	this->client_max_body_size = client_max_body_size;
 }
 
-void Server::insertRoute(const Route &route)
+void ServerConfig::insertRoute(const Route &route)
 {
 	const std::string &path = route.getPath();
 	bool result = this->routes.insert(std::make_pair(path, route)).second;
@@ -94,7 +95,7 @@ void Server::insertRoute(const Route &route)
 		throw ServerConfigException("Duplicate route path: " + path);
 }
 
-void Server::checkIsValidServer() const
+void ServerConfig::checkIsValidServer() const
 {
 	if (this->server_ip.empty())
 		throw ServerConfigException("Server IP cannot be empty");
@@ -110,16 +111,19 @@ void Server::checkIsValidServer() const
 
 //* Exception class for invalid server configuration
 
-Server::ServerConfigException::ServerConfigException(const std::string &message) : message(message)
+ServerConfig::ServerConfigException::ServerConfigException(const std::string &message) : message(message)
 {
 }
 
-Server::ServerConfigException::~ServerConfigException() throw()
+ServerConfig::ServerConfigException::~ServerConfigException() throw()
 {
 }
 
-const char *Server::ServerConfigException::what() const throw()
+const char *ServerConfig::ServerConfigException::what() const throw()
 {
-	std::string Nmessage = "Server configuration error: " + this->message;
+	static std::string Nmessage;
+
+	Nmessage = "Server configuration error: " + this->message;
+
 	return Nmessage.c_str();
 }

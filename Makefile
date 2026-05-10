@@ -10,7 +10,7 @@ RMDIR=rm -rf
 UTILS_SRCS=utils/Utils.cpp
 
 PARSER_SRCS=parser/Config.cpp \
-			parser/Server.cpp \
+			parser/ServerConfig.cpp \
 			parser/Route.cpp
 
 all: $(NAME)

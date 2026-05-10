@@ -4,7 +4,7 @@
 
 Config::Config()
 {
-	Server default_server;
+	ServerConfig default_server;
 	default_server.setPort(80);
 	default_server.setServerName("localhost");
 	default_server.setKeepaliveTimeout(5);
@@ -339,7 +339,7 @@ void Config::parseConfig(Config &cf, const std::vector<std::string> &tokens)
 		}
 		//* Parse server block
 		i++; // Skip 'server'
-		cf.servers.push_back(Server());
+		cf.servers.push_back(ServerConfig());
 		if (i >= tokens.size() || tokens[i] != "{")
 		{
 			throw std::runtime_error("Expected '{' after 'server' but got '" + (i < tokens.size() ? tokens[i] : "EOF") + "'");
@@ -375,7 +375,7 @@ Config::~Config()
 {
 }
 
-const std::vector<Server> &Config::getServers() const
+const std::vector<ServerConfig> &Config::getServers() const
 {
 	return this->servers;
 }
@@ -391,10 +391,10 @@ void Config::checkConfigIsValid() const
 
 void configPrinter(const Config &config)
 {
-	const std::vector<Server> &servers = config.getServers();
+	const std::vector<ServerConfig> &servers = config.getServers();
 	for (size_t i = 0; i < servers.size(); i++)
 	{
-		const Server &server = servers[i];
+		const ServerConfig &server = servers[i];
 		std::cout << "Server " << i + 1 << ":" << std::endl;
 		std::cout << "  IP: " << server.getServerIp() << std::endl;
 		std::cout << "  Port: " << server.getPort() << std::endl;

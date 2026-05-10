@@ -125,6 +125,7 @@ Route::LocationAttributeException::~LocationAttributeException() throw()
 
 const char *Route::LocationAttributeException::what() const throw()
 {
-	std::string message = "Invalid location attribute: " + this->attribute;
+	static std::string message = "Invalid location attribute: ";
+	message = message + this->attribute;
 	return message.c_str();
 }
