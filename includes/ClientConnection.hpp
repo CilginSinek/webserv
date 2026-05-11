@@ -1,7 +1,11 @@
+#include "Buffer.hpp"
+
+
+
 class ClientConnection
 {
 private:
-	/* data */
+	
 public:
 	ClientConnection(/* args */);
 	~ClientConnection();

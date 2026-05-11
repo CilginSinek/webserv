@@ -1,8 +1,14 @@
 class AConnection
 {
 private:
-	/* data */
+	int _fd;
+
 public:
 	AConnection(/* args */);
-	~AConnection();
+	virtual ~AConnection();
+
+	int				getFd();
+	virtual bool	handleRead();
+	virtual	bool	handleWrite();
+	virtual void	close();
 };
