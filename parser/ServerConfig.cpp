@@ -1,5 +1,5 @@
-#include "../includes/ServerConfig.hpp"
-#include "../includes/Utils.hpp"
+#include "ServerConfig.hpp"
+#include "Utils.hpp"
 
 //* Constructor and Destructor
 ServerConfig::ServerConfig() : keepalive_timeout(0)
@@ -17,7 +17,6 @@ ServerConfig::~ServerConfig()
 }
 
 //* Getters and Setters
-
 const std::string &ServerConfig::getServerIp() const
 {
 	return this->server_ip;

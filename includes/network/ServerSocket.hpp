@@ -14,5 +14,6 @@ public:
     int     acceptClient();
     void    close();
     void    setNonBlocking(int fd);
-	const ServerConfig getConfig();
+	const   ServerConfig& getConfig();
+    int     getFd();
 };
