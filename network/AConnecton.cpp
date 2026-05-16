@@ -1,4 +1,4 @@
-#include "AConnection.hpp"
+#include "network/AConnection.hpp"
 
 AConnection::AConnection(/* args */)
 {

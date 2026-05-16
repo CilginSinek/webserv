@@ -1,4 +1,4 @@
-#include "ClientConnection.hpp"
+#include "network/ClientConnection.hpp"
 
 
 ClientConnection::ClientConnection(/* args */)

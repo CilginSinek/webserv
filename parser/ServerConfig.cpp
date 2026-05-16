@@ -1,5 +1,5 @@
-#include "ServerConfig.hpp"
-#include "Utils.hpp"
+#include "parser/ServerConfig.hpp"
+#include "utils/Utils.hpp"
 
 //* Constructor and Destructor
 ServerConfig::ServerConfig() : keepalive_timeout(0)

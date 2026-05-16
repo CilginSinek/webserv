@@ -1,6 +1,6 @@
 NAME=webserv
 CXX=c++
-CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g
+CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g -I includes
 SRCS=main.cpp $(PARSER_SRCS) $(UTILS_SRCS)
 OBJ_DIR=obj
 OBJS=$(addprefix $(OBJ_DIR)/,$(SRCS:.cpp=.o))

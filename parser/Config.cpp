@@ -1,5 +1,5 @@
-#include "../includes/Config.hpp"
-#include "../includes/Utils.hpp"
+#include "parser/Config.hpp"
+#include "utils/Utils.hpp"
 //* Constructor and Destructor
 
 Config::Config()

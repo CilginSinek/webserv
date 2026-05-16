@@ -18,6 +18,6 @@ public:
 	void	modifyConnection(int fd, u_int32_t events);
 	void	removeConnection(int fd);
 	void	run();
-	void	handleServerSocket(int fd);
+	void	handleServerSocket(ServerSocket *socket);
 	void	handleClientEvent(int fd, u_int32_t events);
 };
