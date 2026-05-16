@@ -14,7 +14,7 @@ public:
 	~EventLoop();
 
 	void 	addServerSocket(ServerSocket  *socket);
-	void	addConnection(AConnection connec, u_int32_t events);
+	int		addConnection(int fd, u_int32_t events);
 	void	modifyConnection(int fd, u_int32_t events);
 	void	removeConnection(int fd);
 	void	run();

@@ -14,22 +14,26 @@ EventLoop::EventLoop(/* args */)
 
 EventLoop::~EventLoop()
 {
+    if (epollFd != -1)
+        close(epollFd);
 }
 
 void	EventLoop::run()
 {
 	std::vector <ServerSocket *>::iterator it;
-	struct epoll_event *events;
+	struct epoll_event 	events[1028];
 	bool				isServer;
 	int					event_count;
 
 	isServer = false;
 	while (true)
 	{
-		event_count = (epoll_wait(epollFd, events, INT32_MAX, 100));
-
-		for (size_t i = 0; i < event_count; i++)
+		event_count = (epoll_wait(epollFd, events, 1028, 100));
+		if (event_count == -1)
+			continue;
+		for (int i = 0; i < event_count; i++)
 		{
+			isServer = 0;
 			for (it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
 			{
 				if ((*it)->getFd() == events[i].data.fd) 
@@ -51,7 +55,10 @@ void	EventLoop::handleServerSocket(ServerSocket *socket)
 	int client_fd = socket->acceptClient();
 
 	if (client_fd != -1)
+	{
 		fcntl(client_fd, F_SETFL, O_NONBLOCK); //client can send data to me 
+		addConnection(client_fd, EPOLLIN);
+	}
 	
 	struct epoll_event ev;
 	ev.events = EPOLLIN; //inform me when client sends data
@@ -63,15 +70,16 @@ void	EventLoop::handleServerSocket(ServerSocket *socket)
 //control the three main event: connection error, client http request, http response
 void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 {
-	char	buffer[1024];
-	int		bytes_read;
-	char	*response;
-	int		isKeepAlive;
+	char		buffer[1024];
+	int			bytes_read;
+	const char	*response;
+	int			isKeepAlive = 0;
 
 	if ((events & EPOLLERR) || (events & EPOLLHUP))
 	{
-		close(fd);
 		removeConnection(fd);
+		close(fd);
+		return ;
 	}
 	if (events & EPOLLIN)
 	{
@@ -82,27 +90,28 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 		{
 			buffer[bytes_read] = '\0';
 			std::cout << "The incoming request: " << buffer << std::endl;
-			close(fd);
+			modifyConnection(fd, EPOLLOUT);
 		}
-		if (bytes_read == 0)
+		else
+		{
+			removeConnection(fd);
 			close(fd);
-		//if (bytes_read < 0)
-			//close(fd);
-		ev.events = EPOLLOUT;
-		ev.data.fd = fd;
-		epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &ev); //mod modify r -> w
+
+		}
 	}
-	if (events & EPOLLOUT)
+	else if (events & EPOLLOUT)
 	{
-		response = "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nMerhaba Web";
+		response = "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nMerhaba Web"; //TEMPORARY
 		send(fd, response, std::strlen(response), 0);
 		if (isKeepAlive)
 		{
-			//epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &ev);
-			close(fd); //test için şimdilik kapattım.
+			modifyConnection(fd, EPOLLIN);
 		}
 		else
+		{
+			removeConnection(fd);
 			close(fd);
+		}
 	}
 }
 
@@ -113,20 +122,42 @@ void 	EventLoop::addServerSocket(ServerSocket  *socket)
 	int fd = socket->getFd();
 	if (fd == -1)
 		return;
-	struct epoll_event ev;	
-	ev.events = EPOLLIN;
-	ev.data.fd = fd;
-    if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == -1)
+
+    if (addConnection(fd, EPOLLIN))
     {
 		throw std::runtime_error("epoll_ctl(ADD) server socket failed");
     }
 	_serverSockets.push_back(socket);
 }
 
-void	EventLoop::addConnection(AConnection connec, u_int32_t events)
-{
+// WRAPPER FUNCTIONS
 
+int	EventLoop::addConnection(int fd, u_int32_t events)
+{
+	struct epoll_event	ev;
+
+	ev.events = events;
+	ev.data.fd = fd;
+	if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == -1)
+	{
+		std::cerr << "epoll_ctl (ADD) failed for fd: " << fd << std::endl;
+		return (-1);
+	}
+	return (1);
 }
 
-void	EventLoop::modifyConnection(int fd, u_int32_t events) {}
-void	EventLoop::removeConnection(int fd) {}
+void	EventLoop::modifyConnection(int fd, u_int32_t events)
+{
+	struct epoll_event ev;
+
+	ev.events = events;
+	ev.data.fd = fd;
+	if (epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &ev) == -1)
+	    std::cerr << "epoll_ctl (MOD) failed for fd: " << fd << std::endl;
+}
+
+void	EventLoop::removeConnection(int fd)
+{
+    if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, NULL) == -1)
+        std::cerr << "epoll_ctl (DEL) failed for fd: " << fd << std::endl;
+}
