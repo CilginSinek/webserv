@@ -1,5 +1,6 @@
 #include "parser/Config.hpp"
 #include <iostream>
+#include "core/EventLoop.hpp"
 #include <stdexcept>
 
 int main(int argc, char const *argv[])
@@ -9,39 +10,53 @@ int main(int argc, char const *argv[])
 		std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
 		return 1;
 	}
-	if(argc == 2)
+	// if(argc == 2)
+	// {
+	// 	try
+	// 	{
+	// 		Config config(argv[1]);
+	// 		std::cout << "Config file '" << argv[1] << "' parsed successfully." << std::endl;
+	// 		configPrinter(config);
+	// 		std::cout << "Config file '" << argv[1] << "' printed successfully." << std::endl;
+	// 		config.checkConfigIsValid();
+	// 		std::cout << "Config file '" << argv[1] << "' is valid." << std::endl;
+	// 	}
+	// 	catch (const std::exception &e)
+	// 	{
+	// 		std::cerr << "Error: " << e.what() << std::endl;
+	// 		return 1;
+	// 	}
+	// }
+	// else
+	// {
+	// 	try
+	// 	{
+	// 		Config config;
+	// 		std::cout << "Default config created successfully." << std::endl;
+	// 		configPrinter(config);
+	// 		std::cout << "Default config printed successfully." << std::endl;
+	// 		config.checkConfigIsValid();
+	// 		std::cout << "Default config is valid." << std::endl;
+	// 	}
+	// 	catch (const std::exception &e)
+	// 	{
+	// 		std::cerr << "Error: " << e.what() << std::endl;
+	// 		return 1;
+	// 	}
+	// }
+	try
 	{
-		try
-		{
-			Config config(argv[1]);
-			std::cout << "Config file '" << argv[1] << "' parsed successfully." << std::endl;
-			configPrinter(config);
-			std::cout << "Config file '" << argv[1] << "' printed successfully." << std::endl;
-			config.checkConfigIsValid();
-			std::cout << "Config file '" << argv[1] << "' is valid." << std::endl;
-		}
-		catch (const std::exception &e)
-		{
-			std::cerr << "Error: " << e.what() << std::endl;
-			return 1;
-		}
+		EventLoop *event = new EventLoop();
+		Config _config(argv[1]);
+		ServerSocket *socket = new ServerSocket(*_config.getServers().begin());
+		socket->open(); // Soketi aç, bind ve listen işlemlerini yapsın
+		event->addServerSocket(socket);
+		event->run();
 	}
-	else
+	catch(const std::exception& e)
 	{
-		try
-		{
-			Config config;
-			std::cout << "Default config created successfully." << std::endl;
-			configPrinter(config);
-			std::cout << "Default config printed successfully." << std::endl;
-			config.checkConfigIsValid();
-			std::cout << "Default config is valid." << std::endl;
-		}
-		catch (const std::exception &e)
-		{
-			std::cerr << "Error: " << e.what() << std::endl;
-			return 1;
-		}
+		std::cerr << e.what() << '\n';
 	}
+	
 	return 0;
 }

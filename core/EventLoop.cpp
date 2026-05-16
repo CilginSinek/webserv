@@ -33,6 +33,7 @@ void	EventLoop::run()
 			continue;
 		for (int i = 0; i < event_count; i++)
 		{
+			debugLogger("selam\n");
 			isServer = 0;
 			for (it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
 			{
@@ -83,7 +84,6 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	if (events & EPOLLIN)
 	{
-		epoll_event ev;
 		bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
 		
 		if (bytes_read > 0)
@@ -123,7 +123,8 @@ void 	EventLoop::addServerSocket(ServerSocket  *socket)
 	if (fd == -1)
 		return;
 
-    if (addConnection(fd, EPOLLIN))
+		
+    if (addConnection(fd, EPOLLIN) == -1)
     {
 		throw std::runtime_error("epoll_ctl(ADD) server socket failed");
     }

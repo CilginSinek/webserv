@@ -5,7 +5,7 @@
 Config::Config()
 {
 	ServerConfig default_server;
-	default_server.setPort(80);
+	default_server.setPort(8080);
 	default_server.setServerName("localhost");
 	default_server.setKeepaliveTimeout(5);
 	Route default_route;

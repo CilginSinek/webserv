@@ -11,7 +11,7 @@ UTILS_SRCS=utils/Utils.cpp
 
 PARSER_SRCS=parser/Config.cpp \
 			parser/ServerConfig.cpp \
-			parser/Route.cpp
+			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp
 
 all: $(NAME)
 

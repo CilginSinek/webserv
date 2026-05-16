@@ -1,7 +1,8 @@
 #include <map>
 #include <vector>
-#include "AConnection.hpp"
-#include "ServerSocket.hpp"
+#include "../network/AConnection.hpp"
+#include "../network/ServerSocket.hpp"
+#include "../utils/Utils.hpp"
 
 class EventLoop
 {

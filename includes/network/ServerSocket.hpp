@@ -1,4 +1,4 @@
-#include "ServerConfig.hpp"
+#include "../parser/ServerConfig.hpp"
 
 class ServerSocket
 {
