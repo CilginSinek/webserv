@@ -90,7 +90,7 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 		{
 			buffer[bytes_read] = '\0';
 			std::cout << "The incoming request: " << buffer << std::endl;
-			modifyConnection(fd, EPOLLOUT);
+			modifyConnection(fd, EPOLLOUT); // request parse
 		}
 		else
 		{
@@ -101,8 +101,8 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	else if (events & EPOLLOUT)
 	{
-		response = "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nMerhaba Web"; //TEMPORARY
-		send(fd, response, std::strlen(response), 0);
+		response = "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nMerhaba Web"; //TEMPORARY response parse
+		send(fd, response, std::strlen(response), 0); 
 		if (isKeepAlive)
 		{
 			modifyConnection(fd, EPOLLIN);
