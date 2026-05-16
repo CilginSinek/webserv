@@ -25,7 +25,7 @@ ServerSocket::~ServerSocket()
 void ServerSocket::open()
 {
     if (_fd != -1)
-        return; // already open
+        return;
 
 	/*  AF_INET: I use IPv4  
 		SOCK_STREAM: TCP socket
