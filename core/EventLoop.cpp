@@ -33,7 +33,6 @@ void	EventLoop::run()
 			continue;
 		for (int i = 0; i < event_count; i++)
 		{
-			debugLogger("selam\n");
 			isServer = 0;
 			for (it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
 			{
