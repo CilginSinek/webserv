@@ -2,7 +2,7 @@
 #define _REQUEST_PARSE_HPP_
 
 #include "Buffer.hpp"
-#include "ServerConfig.hpp" 
+#include "ServerConfig.hpp"
 
 class RequestParse
 {
@@ -13,15 +13,13 @@ private:
 	std::string _version;
 	std::unordered_map<std::string, std::string> _headers;
 	Buffer _body;
-	ServerConfig &_config;
 
 	bool setAndValidFLine(const std::string &firstLine);
 	bool setAndValidHeaders(const Buffer &headersBuffer);
 
 public:
 	RequestParse();
-	RequestParse(const ServerConfig &config);
-	RequestParse(const ServerConfig &config, Buffer buffer);
+	RequestParse(Buffer buffer);
 	~RequestParse();
 
 	void setBuffer(Buffer buffer);
@@ -30,7 +28,6 @@ public:
 	const std::string &getPath() const;
 	const std::string &getVersion() const;
 	const std::unordered_map<std::string, std::string> &getHeaders() const;
-	const void addHeader(const std::string &key, const std::string &value);
 	const bool isValid() const;
 };
 

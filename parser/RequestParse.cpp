@@ -2,14 +2,9 @@
 
 RequestParse::RequestParse()
 {
-	throw std::runtime_error("RequestParse: Default constructor is not allowed");
 }
 
-RequestParse::RequestParse(const ServerConfig &config) : _config(config)
-{
-}
-
-RequestParse::RequestParse(const ServerConfig &config, Buffer buffer) : _config(config), _buffer(buffer)
+RequestParse::RequestParse(Buffer buffer) : _buffer(buffer)
 {
 }
 
@@ -80,7 +75,6 @@ bool RequestParse::setAndValidFLine(const std::string &firstLine)
 	return true;
 }
 
-
 bool RequestParse::setAndValidHeaders(const Buffer &buffer)
 {
 	std::string headers = buffer.substr(0, buffer.find("\r\n\r\n"));
@@ -118,7 +112,7 @@ const bool RequestParse::isValid() const
 		return false;
 	if (!setAndValidHeaders(this->_buffer))
 		return false;
-	bodyBuffer = this->_buffer.substr(this->_buffer.find("\r\n\r\n") + 4);
+	Buffer bodyBuffer = this->_buffer.substr(this->_buffer.find("\r\n\r\n") + 4);
 	this->_body = bodyBuffer;
 	return true;
 }
