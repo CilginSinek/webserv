@@ -8,21 +8,29 @@
 
 #endif
 
+#include "RequestParse.hpp"
+#include "ServerConfig.hpp"
+#include "utils/Buffer.hpp"
+#include "utils/Utils.hpp"
+
 class ResponseParse
 {
 private:
-	ServerConfig &_serverConfig;
-	RequestParse &requestParse;
+
+	const ServerConfig &_serverConfig;
+	RequestParse _requestParse;
 
 	Buffer generateDefaultErrorPage(int errorCode) const;
-
+	Buffer cgiExecute(const Route &selectedRoute, std::string requestingPath);
+	Buffer autoindexExecute(const Route &selectedRoute, std::string requestingPath);
+	Buffer serveFile(const Route &selectedRoute, std::string requestingPath);
+	ResponseParse();
 
 public:
-	ResponseParse();
-	ResponseParse(const RequestParse &requestParse, ServerConfig &config);
+    ResponseParse(RequestParse& requestParse, const ServerConfig& config);
 	~ResponseParse();
 
-	Buffer generateResponse() const;
+	Buffer generateResponse();
 };
 
 #endif

@@ -1,8 +1,9 @@
 #ifndef _REQUEST_PARSE_HPP_
 #define _REQUEST_PARSE_HPP_
 
-#include "Buffer.hpp"
+#include "utils/Buffer.hpp"
 #include "ServerConfig.hpp"
+#include <algorithm>
 
 class RequestParse
 {
@@ -11,7 +12,8 @@ private:
 	t_method _method;
 	std::string _path;
 	std::string _version;
-	std::unordered_map<std::string, std::string> _headers;
+	std::map<std::string, std::string> _headers;
+	std::string _query;
 	Buffer _body;
 
 	bool setAndValidFLine(const std::string &firstLine);
@@ -20,6 +22,8 @@ private:
 public:
 	RequestParse();
 	RequestParse(Buffer buffer);
+	RequestParse(const RequestParse &other);
+	RequestParse &operator=(const RequestParse &other);
 	~RequestParse();
 
 	void setBuffer(Buffer buffer);
@@ -27,8 +31,10 @@ public:
 	const t_method &getMethod() const;
 	const std::string &getPath() const;
 	const std::string &getVersion() const;
-	const std::unordered_map<std::string, std::string> &getHeaders() const;
-	const bool isValid() const;
+	std::string getQuery() const;
+	const std::map<std::string, std::string> &getHeaders() const;
+	void addHeader(std::string key, std::string value);
+	bool isValid();
 };
 
 #endif

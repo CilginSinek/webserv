@@ -37,6 +37,21 @@ bool isIgnoredLine(const std::string &line)
 	return trimmed.empty() || trimmed[0] == '#';
 }
 
+std::string upperString(const std::string &str)
+{
+	std::string res = str;
+	for (size_t i = 0; i < res.size(); i++)
+		res[i] = std::toupper(res[i]);
+	return res;
+}
+
+bool endsWith(const std::string &str, const std::string &ext)
+{
+	if (str.size() < ext.size())
+		return false;
+	return str.compare(str.size() - ext.size(), ext.size(), ext) == 0;
+}
+
 void debugLogger(const std::string &message)
 {
 	time_t now = time(0);

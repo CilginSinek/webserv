@@ -10,6 +10,7 @@ int main(int argc, char const *argv[])
 		std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
 		return 1;
 	}
+	signal(SIGPIPE, SIG_IGN); // Ignore SIGPIPE to prevent crashes when writing to closed sockets
 	// if(argc == 2)
 	// {
 	// 	try
