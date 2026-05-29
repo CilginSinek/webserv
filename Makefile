@@ -13,7 +13,8 @@ UTILS_SRCS=utils/Utils.cpp utils/Buffer.cpp
 PARSER_SRCS=parser/Config.cpp \
 			parser/ServerConfig.cpp \
 			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp \
-			parser/RequestParse.cpp parser/ResponseParse.cpp
+			parser/RequestParse.cpp parser/ResponseParse.cpp \
+			network/ClientConnection.cpp network/AConnection.cpp 
 
 all: $(NAME)
 
@@ -33,4 +34,7 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+test: all
+	clear; ./$(NAME) test.conf
+
+.PHONY: all clean fclean re test

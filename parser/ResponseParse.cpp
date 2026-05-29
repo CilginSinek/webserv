@@ -28,6 +28,8 @@ Buffer ResponseParse::generateDefaultErrorPage(int errorCode) const
 		ft_itos(errorCode) +
 		" Error</h1><p>Sorry, an error occurred while processing your request.</p></body></html>";
 	std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
+	if (this->_requestParse.getMethod() == HEAD)
+		return Buffer(responseHeader);
 	return Buffer(responseHeader + errorPage);
 }
 
@@ -119,6 +121,8 @@ Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string request
 	else
 		contentType = "application/octet-stream";
 	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(cgiOutput.size()) + "\r\n\r\n";
+	if (this->_requestParse.getMethod() == HEAD)
+		return Buffer(responseHeader);
 	return Buffer(responseHeader + cgiOutput);
 }
 
@@ -158,7 +162,8 @@ Buffer ResponseParse::autoindexExecute(const Route &selectedRoute, std::string r
 	html += "</ul></body></html>";
 	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(html.size()) + "\r\n\r\n";
 	closedir(dir);
-
+	if (this->_requestParse.getMethod() == HEAD)
+		return Buffer(responseHeader);
 	return Buffer(responseHeader + html);
 }
 
@@ -235,8 +240,9 @@ Buffer ResponseParse::serveFile(const Route &selectedRoute, std::string requesti
 			return generateDefaultErrorPage(406);
 	}
 	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(buffer.str().size()) + "\r\n\r\n";
+	if (this->_requestParse.getMethod() == HEAD)
+		return Buffer(responseHeader);
 	return Buffer(responseHeader + buffer.str());
-	return Buffer();
 }
 
 Buffer ResponseParse::generateResponse()

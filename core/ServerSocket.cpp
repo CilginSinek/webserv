@@ -118,7 +118,7 @@ void ServerSocket::setNonBlocking(int fd)
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-const ServerConfig& ServerSocket::getConfig()
+const ServerConfig& ServerSocket::getConfig() const
 {
     return _config;
 }

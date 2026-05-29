@@ -1,6 +1,6 @@
 #include <map>
 #include <vector>
-#include "../network/AConnection.hpp"
+#include "../network/ClientConnection.hpp"
 #include "../network/ServerSocket.hpp"
 #include "../parser/RequestParse.hpp"
 #include "../utils/Utils.hpp"
@@ -9,9 +9,8 @@ class EventLoop
 {
 private:
 	int epollFd;
-	std::map <int, AConnection*> connections;
+	std::map <int, ClientConnection> _connections;
 	std::vector <ServerSocket *> _serverSockets;
-	std::map <int, std::pair<ServerSocket*, RequestParse> > _clientToServer;
 public:
 	EventLoop(/* args */);
 	~EventLoop();

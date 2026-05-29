@@ -58,7 +58,7 @@ void	EventLoop::handleServerSocket(ServerSocket *socket)
 
 	if (client_fd != -1)
 	{
-		_clientToServer[client_fd] = std::make_pair(socket, RequestParse());
+		this->_connections.insert(std::make_pair(client_fd, ClientConnection(client_fd, socket)));
 		fcntl(client_fd, F_SETFL, O_NONBLOCK); //client can send data to me 
 		addConnection(client_fd, EPOLLIN);
 	}
@@ -75,11 +75,11 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 {
 	char		buffer[1024];
 	int			bytes_read;
-	int			isKeepAlive = 0;
+	int			isKeepAlive = 1;
 
 	if ((events & EPOLLERR) || (events & EPOLLHUP))
 	{
-		this->_clientToServer.erase(fd);
+		this->_connections.erase(fd);
 		removeConnection(fd);
 		close(fd);
 		return ;
@@ -87,18 +87,15 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	if (events & EPOLLIN)
 	{
 		bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
-		
 		if (bytes_read > 0)
 		{
 			buffer[bytes_read] = '\0';
-			std::string newbuf = _clientToServer[fd].second.getBuffer() + buffer;
-			_clientToServer[fd].second.setBuffer(Buffer(newbuf));
-			std::cout << "Received request:\n" << _clientToServer[fd].second.getBuffer() << std::endl;
-			modifyConnection(fd, EPOLLOUT); // request parse
+			this->_connections[fd].addReadBuffer(Buffer(buffer));
+			modifyConnection(fd, EPOLLOUT);
 		}
 		else
 		{
-			this->_clientToServer.erase(fd);
+			this->_connections.erase(fd);
 			removeConnection(fd);
 			close(fd);
 
@@ -106,16 +103,24 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	else if (events & EPOLLOUT)
 	{
-		ResponseParse responseParse(_clientToServer[fd].second, _clientToServer[fd].first->getConfig());
-		Buffer responseBuffer = responseParse.generateResponse();
-		send(fd, responseBuffer.c_str(), responseBuffer.size(), 0); 
+		if (this->_connections[fd].getState() == WRITING)
+		{
+			Buffer responseBuffer = this->_connections[fd].getWriteBuffer();
+			RequestParse requestParse(responseBuffer);
+			ResponseParse responseParse(requestParse, this->_connections[fd].getServerSocket()->getConfig());
+			debugLogger("Request fd " + ft_itos(fd) + ":\n" + responseBuffer);
+			responseBuffer = responseParse.generateResponse();
+
+			debugLogger("Response fd " + ft_itos(fd) + ":\n" + responseBuffer);
+			send(fd, responseBuffer.c_str(), responseBuffer.size(), 0); 
+		}
 		if (isKeepAlive)
 		{
 			modifyConnection(fd, EPOLLIN);
 		}
 		else
 		{
-			this->_clientToServer.erase(fd);
+			this->_connections.erase(fd);
 			removeConnection(fd);
 			close(fd);
 		}

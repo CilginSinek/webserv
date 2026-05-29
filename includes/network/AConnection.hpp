@@ -1,14 +1,17 @@
 class AConnection
 {
-private:
+protected:
 	int _fd;
 
 public:
-	AConnection(/* args */);
+	AConnection();
+	AConnection(int fd);
+	AConnection(const AConnection &other);
+	AConnection &operator=(const AConnection &other);
 	virtual ~AConnection();
 
-	int				getFd();
-	virtual bool	handleRead();
-	virtual	bool	handleWrite();
-	virtual void	close();
+	// int				getFd();
+	// virtual bool	handleRead();
+	// virtual	bool	handleWrite();
+	// virtual void	close();
 };
