@@ -1,4 +1,6 @@
 #include "core/EventLoop.hpp"
+#include "parser/RequestParse.hpp"
+#include "parser/ResponseParse.hpp"
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -33,7 +35,6 @@ void	EventLoop::run()
 			continue;
 		for (int i = 0; i < event_count; i++)
 		{
-			debugLogger("selam\n");
 			isServer = 0;
 			for (it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
 			{
@@ -57,6 +58,7 @@ void	EventLoop::handleServerSocket(ServerSocket *socket)
 
 	if (client_fd != -1)
 	{
+		this->_connections.insert(std::make_pair(client_fd, ClientConnection(client_fd, socket)));
 		fcntl(client_fd, F_SETFL, O_NONBLOCK); //client can send data to me 
 		addConnection(client_fd, EPOLLIN);
 	}
@@ -73,11 +75,11 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 {
 	char		buffer[1024];
 	int			bytes_read;
-	const char	*response;
-	int			isKeepAlive = 0;
+	int			isKeepAlive = 1;
 
 	if ((events & EPOLLERR) || (events & EPOLLHUP))
 	{
+		this->_connections.erase(fd);
 		removeConnection(fd);
 		close(fd);
 		return ;
@@ -85,15 +87,15 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	if (events & EPOLLIN)
 	{
 		bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
-		
 		if (bytes_read > 0)
 		{
 			buffer[bytes_read] = '\0';
-			std::cout << "The incoming request: " << buffer << std::endl;
-			modifyConnection(fd, EPOLLOUT); // request parse
+			this->_connections[fd].addReadBuffer(Buffer(buffer));
+			modifyConnection(fd, EPOLLOUT);
 		}
 		else
 		{
+			this->_connections.erase(fd);
 			removeConnection(fd);
 			close(fd);
 
@@ -101,14 +103,24 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	else if (events & EPOLLOUT)
 	{
-		response = "HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nMerhaba Web"; //TEMPORARY response parse
-		send(fd, response, std::strlen(response), 0); 
+		while (this->_connections[fd].getState() == WRITING)
+		{
+			Buffer responseBuffer = this->_connections[fd].getWriteBuffer();
+			RequestParse requestParse(responseBuffer);
+			ResponseParse responseParse(requestParse, this->_connections[fd].getServerSocket()->getConfig());
+			debugLogger("Request fd " + ft_itos(fd) + ":\n" + responseBuffer);
+			responseBuffer = responseParse.generateResponse();
+
+			debugLogger("Response fd " + ft_itos(fd) + ":\n" + responseBuffer);
+			send(fd, responseBuffer.c_str(), responseBuffer.size(), 0); 
+		}
 		if (isKeepAlive)
 		{
 			modifyConnection(fd, EPOLLIN);
 		}
 		else
 		{
+			this->_connections.erase(fd);
 			removeConnection(fd);
 			close(fd);
 		}

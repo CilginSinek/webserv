@@ -7,16 +7,19 @@
 #include <vector>
 #include <set>
 
+#ifndef T_METHOD
+#define T_METHOD
 typedef enum Method
 {
 	GET,
 	POST,
 	DELETE,
 	PUT,
-	PATCH,
+	TRACE,
 	HEAD,
 	OPTIONS
 } t_method;
+#endif
 
 /**
  * @brief The Route class represents a route configuration for a web server. It contains information about the path, allowed methods, root directory, index file, autoindex setting, redirect configuration, upload path, and CGI configuration for a specific route.
@@ -41,6 +44,8 @@ private:
 
 public:
 	Route();
+	Route(const Route &other);
+	Route &operator=(const Route &other);
 	~Route();
 
 	//* Getters and setters for the Route class

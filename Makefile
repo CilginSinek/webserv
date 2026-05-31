@@ -1,3 +1,4 @@
+#* NEED TO BE REFACTORED
 NAME=webserv
 CXX=c++
 CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g -I includes
@@ -7,11 +8,13 @@ OBJS=$(addprefix $(OBJ_DIR)/,$(SRCS:.cpp=.o))
 RM=rm -f
 RMDIR=rm -rf
 
-UTILS_SRCS=utils/Utils.cpp
+UTILS_SRCS=utils/Utils.cpp utils/Buffer.cpp
 
 PARSER_SRCS=parser/Config.cpp \
 			parser/ServerConfig.cpp \
-			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp
+			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp \
+			parser/RequestParse.cpp parser/ResponseParse.cpp \
+			network/ClientConnection.cpp network/AConnection.cpp 
 
 all: $(NAME)
 
@@ -31,4 +34,7 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+test: all
+	clear; ./$(NAME) test.conf
+
+.PHONY: all clean fclean re test

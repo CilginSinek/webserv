@@ -1,3 +1,6 @@
+#ifndef _SERVERSOCKET_HPP_
+#define _SERVERSOCKET_HPP_
+
 #include "../parser/ServerConfig.hpp"
 
 class ServerSocket
@@ -14,6 +17,8 @@ public:
     int     acceptClient();
     void    close();
     void    setNonBlocking(int fd);
-	const   ServerConfig& getConfig();
+	const   ServerConfig& getConfig() const;
     int     getFd();
 };
+
+#endif

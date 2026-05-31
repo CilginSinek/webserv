@@ -267,8 +267,8 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 					route.insertMethod(DELETE);
 				else if (tokens[i] == "PUT")
 					route.insertMethod(PUT);
-				else if (tokens[i] == "PATCH")
-					route.insertMethod(PATCH);
+				else if (tokens[i] == "TRACE")
+					route.insertMethod(TRACE);
 				else if (tokens[i] == "HEAD")
 					route.insertMethod(HEAD);
 				else if (tokens[i] == "OPTIONS")
@@ -425,8 +425,8 @@ void configPrinter(const Config &config)
 				std::cout << " DELETE";
 			if (route.hasMethod(PUT))
 				std::cout << " PUT";
-			if (route.hasMethod(PATCH))
-				std::cout << " PATCH";
+			if (route.hasMethod(TRACE))
+				std::cout << " TRACE";
 			if (route.hasMethod(HEAD))
 				std::cout << " HEAD";
 			if (route.hasMethod(OPTIONS))

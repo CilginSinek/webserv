@@ -10,6 +10,26 @@ Route::Route() : autoindex(false), redirect(std::make_pair(0, "")), cgi(std::mak
 	this->methods.clear();
 }
 
+Route::Route(const Route &other)
+{
+	*this = other;
+}
+
+Route &Route::operator=(const Route &other)
+{
+	if (this != &other)
+	{
+		this->path = other.path;
+		this->methods = other.methods;
+		this->root = other.root;
+		this->index = other.index;
+		this->autoindex = other.autoindex;
+		this->redirect = other.redirect;
+		this->cgi = other.cgi;
+	}
+	return *this;
+}
+
 Route::~Route()
 {
 }
