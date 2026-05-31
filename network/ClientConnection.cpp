@@ -48,16 +48,27 @@ ssize_t ClientConnection::getRequestSize(const Buffer &buffer) const
 {
 	if (buffer.find("\r\n\r\n") == std::string::npos)
 		return -1;
-	if (buffer.find("Content-Length: ") == std::string::npos)
-		return buffer.find("\r\n\r\n") + 4;
-	size_t contentLengthPos = buffer.find("Content-Length: ") + 16;
-	size_t contentLengthEnd = buffer.find("\r\n", contentLengthPos);
-	std::string contentLengthStr = buffer.substr(contentLengthPos, contentLengthEnd - contentLengthPos);
-	size_t contentLength = ft_stoi(contentLengthStr);
-	size_t headerEnd = buffer.find("\r\n\r\n") + 4;
-	if (buffer.size() < headerEnd + contentLength)
-		return -1;
-	return headerEnd + contentLength;
+	std::string header = buffer.substr(0, buffer.find("\r\n\r\n") + 4);
+	if (header.find("Transfer-Encoding: chunked") != std::string::npos)
+	{
+		size_t bodyEndpos = buffer.find("0\r\n\r\n", header.length());
+		if (bodyEndpos == std::string::npos)
+			return -1;
+		return bodyEndpos + 5;
+	}
+	else
+	{
+		size_t contentLengthPos = header.find("Content-Length: ");
+		if (contentLengthPos == std::string::npos)
+			return header.length();
+		contentLengthPos += std::string("Content-Length: ").length();
+		size_t contentLengthEndPos = header.find("\r\n", contentLengthPos);
+		size_t contentLength = strtoul(header.substr(contentLengthPos, contentLengthEndPos - contentLengthPos).c_str(), NULL, 10);
+		if (buffer.length() >= header.length() + contentLength)
+			return header.length() + contentLength;
+		else
+			return -1;
+	}
 }
 
 void ClientConnection::addReadBuffer(const Buffer &buffer)
@@ -78,6 +89,33 @@ void ClientConnection::addReadBuffer(const Buffer &buffer)
 }
 
 
+Buffer ClientConnection::generateResponse(const Buffer &request) const
+{
+	if (request.find("Transfer-Encoding: chunked") != std::string::npos)
+	{
+		std::string header = request.substr(0, request.find("\r\n\r\n") + 4);
+		std::string body = request.substr(request.find("\r\n\r\n") + 4);
+		std::string res;
+		size_t pos = 0;
+		while (pos < body.length())
+		{
+			size_t chunkSizeEndPos = body.find("\r\n", pos);
+			if (chunkSizeEndPos == std::string::npos)
+				break;
+			std::string chunkSizeStr = body.substr(pos, chunkSizeEndPos - pos);
+			size_t chunkSize = strtoul(chunkSizeStr.c_str(), NULL, 16);
+			if (chunkSize == 0)
+				break;
+			pos = chunkSizeEndPos + 2;
+			res += body.substr(pos, chunkSize);
+			pos += chunkSize + 2;
+		}
+		return Buffer(header + res);
+	}
+	else
+		return Buffer(request);
+}
+
 Buffer ClientConnection::getWriteBuffer()
 {
 	ssize_t reqSize = this->getRequestSize(this->_writeBuffer);
@@ -88,7 +126,7 @@ Buffer ClientConnection::getWriteBuffer()
 	this->_lastActiveTime = time(NULL);
 	if (this->_writeBuffer.empty())
 		this->_state = READING;
-	return res;
+	return generateResponse(res);
 }
 
 

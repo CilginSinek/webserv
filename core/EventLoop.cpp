@@ -103,7 +103,7 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	else if (events & EPOLLOUT)
 	{
-		if (this->_connections[fd].getState() == WRITING)
+		while (this->_connections[fd].getState() == WRITING)
 		{
 			Buffer responseBuffer = this->_connections[fd].getWriteBuffer();
 			RequestParse requestParse(responseBuffer);

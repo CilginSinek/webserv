@@ -47,7 +47,7 @@ Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string request
 	std::string executeFilePath = selectedRoute.getRoot() + requestingPath;
 	if (endsWith(executeFilePath, selectedRoute.getCgi().first) == false)
 		executeFilePath += selectedRoute.getCgi().first;
-	debugLogger("CGI execute file path: " + executeFilePath);
+
 	if (access(executeFilePath.c_str(), F_OK) == -1)
 		return generateDefaultErrorPage(404);
 
@@ -279,6 +279,11 @@ Buffer ResponseParse::generateResponse()
 		if (_serverConfig.getRoutes().find(requestPath) != _serverConfig.getRoutes().end())
 		{
 			selectedRoute = _serverConfig.getRoutes().at(requestPath);
+			break;
+		}
+		if (_serverConfig.getRoutes().find(requestPath + "/") != _serverConfig.getRoutes().end())
+		{
+			selectedRoute = _serverConfig.getRoutes().at(requestPath + "/");
 			break;
 		}
 		size_t lastSlashPos = requestPath.find_last_of('/');

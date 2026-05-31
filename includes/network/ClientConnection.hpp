@@ -17,6 +17,7 @@ private:
 	tConnectionState _state;
 	time_t _lastActiveTime;
 	ssize_t getRequestSize(const Buffer &buffer) const;
+	Buffer generateResponse(const Buffer &request) const;
 public:
 	ClientConnection();
 	ClientConnection(int fd, ServerSocket *serverSocket);
