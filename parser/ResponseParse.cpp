@@ -62,11 +62,37 @@ Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string request
 
 	envVars.push_back("PATH_INFO=" + executeFilePath);
 	envVars.push_back("SCRIPT_FILENAME=" + selectedRoute.getCgi().second);
-	envVars.push_back("REQUEST_METHOD=" + this->_requestParse.getMethod());
+	std::string methodStr;
+	switch (this->_requestParse.getMethod())
+	{
+	case GET:
+		methodStr = "GET";
+		break;
+	case POST:
+		methodStr = "POST";
+		break;
+	case DELETE:
+		methodStr = "DELETE";
+		break;
+	case PUT:
+		methodStr = "PUT";
+		break;
+	case TRACE:
+		methodStr = "TRACE";
+		break;
+	case HEAD:
+		methodStr = "HEAD";
+		break;
+	case OPTIONS:
+		methodStr = "OPTIONS";
+		break;
+	default:
+		methodStr = "GET";
+	}
+	envVars.push_back("REQUEST_METHOD=" + methodStr);
 	envVars.push_back("QUERY_STRING=" + this->_requestParse.getQuery());
 
-	char *env[envVars.size() + 1];
-	env[envVars.size()] = NULL;
+	std::vector<char *> env(envVars.size() + 1, NULL);
 	for (size_t i = 0; i < envVars.size(); i++)
 		env[i] = const_cast<char *>(envVars[i].c_str());
 
@@ -84,29 +110,17 @@ Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string request
 		close(pipefd[1]);
 
 		char *args[] = {const_cast<char *>(cgiPath.c_str()), const_cast<char *>(executeFilePath.c_str()), NULL};
-		execve(cgiPath.c_str(), args, env);
+		execve(cgiPath.c_str(), args, &env[0]);
 		exit(1);
 	}
 	else
 	{
 		close(pipefd[1]);
-		int bufsize;
 		int status;
 		waitpid(pid, &status, 0);
-		try
-		{
-			if (this->_requestParse.getHeaders().find("Content-Length") != this->_requestParse.getHeaders().end())
-				bufsize = ft_stoi(this->_requestParse.getHeaders().at("Content-Length"));
-			else
-				bufsize = 4096;
-		}
-		catch (...)
-		{
-			return generateDefaultErrorPage(400);
-		}
-		char buffer[bufsize];
+		char buffer[4096];
 		ssize_t bytesRead;
-		while ((bytesRead = read(pipefd[0], buffer, bufsize)) > 0)
+		while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
 		{
 			cgiOutput.append(buffer, bytesRead);
 		}
@@ -195,12 +209,10 @@ static std::string getContentType(const std::string &filePath)
 
 Buffer ResponseParse::serveFile(const Route &selectedRoute, std::string requestingPath)
 {
-	requestingPath = "/" + requestingPath;
-	if (requestingPath.empty() || requestingPath[requestingPath.size() - 1] == '/')
-	{
-
+	if (requestingPath.empty() || requestingPath[0] != '/')
+		requestingPath = "/" + requestingPath;
+	if (requestingPath[requestingPath.size() - 1] == '/')
 		requestingPath += selectedRoute.getIndex();
-	}
 	std::string filePath = selectedRoute.getRoot() + requestingPath;
 	struct stat fileStat;
 	if (stat(filePath.c_str(), &fileStat) == -1)
