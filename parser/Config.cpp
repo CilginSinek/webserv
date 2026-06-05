@@ -208,10 +208,9 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 {
 	Route route;
 
+	route.setClientMaxBodySize(cf.servers.back().getClientMaxBodySize());
 	if (i >= tokens.size())
 		throw std::runtime_error("Expected path for location but got EOF");
-	if (tokens[i][0] != '/')
-		throw std::runtime_error("Expected path for location but got '" + tokens[i] + "'");
 	route.setPath(tokens[i]);
 	i++;
 	if (i >= tokens.size() || tokens[i] != "{")
@@ -317,6 +316,26 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 			i++;
 			i++; // Skip ';'
 		}
+		else if (tokens[i] == "client_max_body_size")
+		{
+			i++;
+			if (i >= tokens.size())
+				throw std::runtime_error("Expected size value for client_max_body_size but got EOF");
+			std::string body_size = tokens[i];
+			try
+			{
+				int size = ft_stoi(body_size);
+				if (size < 0)
+					throw std::runtime_error("client_max_body_size cannot be negative");
+				route.setClientMaxBodySize(size);
+			}
+			catch (const std::exception &e)
+			{
+				throw std::runtime_error("Expected integer size value for client_max_body_size but got '" + body_size + "'");
+			}
+			i++;
+			i++; // Skip ';')
+		}
 		else
 		{
 			throw std::runtime_error("Unexpected token in route block: '" + tokens[i] + "'");
@@ -416,6 +435,7 @@ void configPrinter(const Config &config)
 			std::cout << "      Root: " << route.getRoot() << std::endl;
 			std::cout << "      Autoindex: " << (route.isAutoindex() ? "on" : "off") << std::endl;
 			std::cout << "      Index: " << route.getIndex() << std::endl;
+			std::cout << "      Client Max Body Size: " << route.getClientMaxBodySize() << std::endl;
 			std::cout << "      Methods:";
 			if (route.hasMethod(GET))
 				std::cout << " GET";

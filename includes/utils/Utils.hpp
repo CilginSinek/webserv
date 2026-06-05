@@ -11,6 +11,8 @@ std::string ft_itos(size_t num);
 bool isIgnoredLine(const std::string &line);
 std::string upperString(const std::string &str);
 bool endsWith(const std::string &str, const std::string &ext);
+std::string trim(const std::string &str);
+std::string normalizeEnv(const std::string &str);
 void debugLogger(const std::string &message);
 
 #endif

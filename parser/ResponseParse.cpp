@@ -2,22 +2,68 @@
 //*TODO handle envp for cgi execution
 
 #include "parser/ResponseParse.hpp"
+#include "network/ClientConnection.hpp"
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <fcntl.h>
 
-ResponseParse::ResponseParse(RequestParse &requestParse, const ServerConfig &config)
-	: _serverConfig(config), _requestParse(requestParse)
+ResponseParse::ResponseParse(const ServerConfig &config)
+	: _serverConfig(config)
 {
+	this->_header.clear();
+	this->_bodyPath.clear();
+	this->_isTemp = false;
+	this->_hasBody = false;
+	this->_bodyContent.clear();
+	this->sentSize = 0;
 }
 
 ResponseParse::~ResponseParse()
 {
 }
 
-Buffer ResponseParse::generateDefaultErrorPage(int errorCode) const
+void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 {
+	struct stat st;
+	if (_serverConfig.getErrorPages().find(errorCode) != _serverConfig.getErrorPages().end())
+	{
+		std::string errorPagePath = _serverConfig.getErrorPages().at(errorCode);
+		if (stat(errorPagePath.c_str(), &st) == -1 || S_ISDIR(st.st_mode))
+		{
+			std::string errorPage =
+				"<html><head><title>" + ft_itos(errorCode) +
+				" Error</title>"
+				"<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml;base64," +
+				std::string(W_FAVICON_BASE64) +
+				"\">"
+				"</head><body><h1>" +
+				ft_itos(errorCode) +
+				" Error</h1><p>Sorry, an error occurred while processing your request.</p></body></html>";
+			std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
+			this->_header = responseHeader;
+			if (method == HEAD)
+			{
+				this->_hasBody = false;
+				return;
+			}
+			this->_bodyPath = "";
+			this->_hasBody = true;
+			this->_bodyContent = errorPage;
+			return;
+		}
+		std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(st.st_size) + "\r\n\r\n";
+		this->_header = responseHeader;
+		if (method == HEAD)
+		{
+			this->_hasBody = false;
+			return;
+		}
+		this->_bodyPath = errorPagePath;
+		this->_hasBody = true;
+		return;
+	}
 	std::string errorPage =
 		"<html><head><title>" + ft_itos(errorCode) +
 		" Error</title>"
@@ -28,42 +74,114 @@ Buffer ResponseParse::generateDefaultErrorPage(int errorCode) const
 		ft_itos(errorCode) +
 		" Error</h1><p>Sorry, an error occurred while processing your request.</p></body></html>";
 	std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
-	if (this->_requestParse.getMethod() == HEAD)
-		return Buffer(responseHeader);
-	return Buffer(responseHeader + errorPage);
+	this->_header = responseHeader;
+	if (method == HEAD)
+	{
+		this->_hasBody = false;
+		return;
+	}
+	this->_bodyPath = "";
+	this->_hasBody = true;
+	this->_bodyContent = errorPage;
+	return;
 }
 
-Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string requestingPath)
+void ResponseParse::readCgiOutput(struct stat &st)
 {
-	std::string cgiPath = selectedRoute.getCgi().second;
+	char buffer[1024];
+	ssize_t bytesRead;
+	std::ifstream bodyFile(this->_bodyPath.c_str(), std::ios::binary);
+	if (!bodyFile.is_open())
+		return;
+	std::string responseHeader;
+	while (bodyFile.read(buffer, sizeof(buffer)))
+	{
+		bytesRead = bodyFile.gcount();
+		responseHeader.append(buffer, bytesRead);
+		size_t headerEndPos = responseHeader.find("\r\n\r\n");
+		if (headerEndPos != std::string::npos)
+		{
+			this->_header = responseHeader.substr(0, headerEndPos + 4);
+			this->sentSize = headerEndPos + 4;
+			break;
+		}
+	}
+	if (bodyFile.eof())
+	{
+		this->_header = responseHeader;
+		this->sentSize = responseHeader.size();
+	}
+	bodyFile.close();
+	if (this->_header.empty())
+	{
+		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+	}
+	if (this->_header.compare(0, 5, "HTTP/") != 0)
+	{
+		std::string appendHeader = "HTTP/1.1";
+		if (responseHeader.find("Status: ") != std::string::npos)
+		{
+			size_t statusPos = responseHeader.find("Status: ") + 8;
+			size_t statusEndPos = responseHeader.find("\r\n", statusPos);
+			if (statusEndPos != std::string::npos)
+			{
+				std::string statusCodeStr = responseHeader.substr(statusPos, statusEndPos - statusPos);
+				appendHeader += " " + statusCodeStr + " " + "OK";
+			}
+		}
+		else
+			appendHeader += " 200 OK";
+		this->_header = appendHeader + "\r\n" + this->_header;
+	}
+	if (this->_header.find("Content-Length: ") == std::string::npos)
+	{
+		size_t headerEndPos = this->_header.find("\r\n\r\n");
+		std::string headerContentL = "\r\nContent-Length: " + ft_itos(st.st_size - this->sentSize) + "\r\n\r\n";
+		if (headerEndPos != std::string::npos)
+			this->_header = this->_header.substr(0, headerEndPos) + headerContentL + this->_header.substr(headerEndPos + 4);
+		else
+			this->_header += headerContentL;
+	}
+}
+
+void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selectedCgiRoute, const RequestParse &requestParse, std::string requestingPath)
+{
+	std::string cgiPath = selectedCgiRoute.getCgi().second;
 	if (access(cgiPath.c_str(), F_OK) == -1)
-		return generateDefaultErrorPage(404);
+		return generateDefaultErrorPage(404, requestParse.getMethod());
 	if (access(cgiPath.c_str(), X_OK) == -1)
-		return generateDefaultErrorPage(403);
+		return generateDefaultErrorPage(403, requestParse.getMethod());
+
 	if (requestingPath.empty() || requestingPath[0] != '/')
 		requestingPath = "/" + requestingPath;
 	if (requestingPath[requestingPath.size() - 1] == '/')
 		requestingPath += selectedRoute.getIndex();
 	std::string executeFilePath = selectedRoute.getRoot() + requestingPath;
-	if (endsWith(executeFilePath, selectedRoute.getCgi().first) == false)
-		executeFilePath += selectedRoute.getCgi().first;
+	if (endsWith(executeFilePath, selectedCgiRoute.getCgi().first) == false)
+		executeFilePath += selectedCgiRoute.getCgi().first;
 
-	if (access(executeFilePath.c_str(), F_OK) == -1)
-		return generateDefaultErrorPage(404);
-
-	int pipefd[2];
-	std::string cgiOutput;
 	std::vector<std::string> envVars;
-	for (std::map<std::string, std::string>::const_iterator it = this->_requestParse.getHeaders().begin(); it != this->_requestParse.getHeaders().end(); ++it)
+	for (std::map<std::string, std::string>::const_iterator it = requestParse.getHeaders().begin(); it != requestParse.getHeaders().end(); ++it)
 	{
-		std::string envVar = "HTTP_" + upperString(it->first) + "=" + it->second;
+		std::string envVar = "HTTP_" + normalizeEnv(it->first) + "=" + trim(it->second);
 		envVars.push_back(envVar);
 	}
-
-	envVars.push_back("PATH_INFO=" + executeFilePath);
-	envVars.push_back("SCRIPT_FILENAME=" + selectedRoute.getCgi().second);
+	if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
+	{
+		envVars.push_back("CONTENT_LENGTH=" + ft_itos(requestParse.getBodySize()));
+		envVars.push_back("CONTENT_TYPE=" + requestParse.getHeaders().at("Content-Type"));
+	}
+	envVars.push_back("PATH_INFO=" + trim(requestParse.getPath()));
+	envVars.push_back("SCRIPT_NAME=" + trim(requestParse.getPath()));
+	envVars.push_back("SERVER_NAME=" + this->_serverConfig.getServerName());
+	envVars.push_back("SERVER_PORT=" + ft_itos(this->_serverConfig.getPort()));
+	envVars.push_back("SERVER_PROTOCOL=" + requestParse.getVersion());
+	envVars.push_back("SERVER_SOFTWARE=webserv/1.0");
+	envVars.push_back("REMOTE_ADDR=127.0.0.1");
+	envVars.push_back("REQUEST_URI=" + trim(requestParse.getPath()));
+	envVars.push_back("REDIRECT_STATUS=200");
 	std::string methodStr;
-	switch (this->_requestParse.getMethod())
+	switch (requestParse.getMethod())
 	{
 	case GET:
 		methodStr = "GET";
@@ -90,73 +208,88 @@ Buffer ResponseParse::cgiExecute(const Route &selectedRoute, std::string request
 		methodStr = "GET";
 	}
 	envVars.push_back("REQUEST_METHOD=" + methodStr);
-	envVars.push_back("QUERY_STRING=" + this->_requestParse.getQuery());
+	envVars.push_back("QUERY_STRING=" + requestParse.getQuery());
 
 	std::vector<char *> env(envVars.size() + 1, NULL);
 	for (size_t i = 0; i < envVars.size(); i++)
 		env[i] = const_cast<char *>(envVars[i].c_str());
 
-	if (pipe(pipefd) == -1)
-		return generateDefaultErrorPage(500);
+	//* create temp file for cgi output
+	std::string tempFilePath = "./temp/cgi_output_" + ft_itos(time(NULL));
+	std::ofstream tempFile(tempFilePath.c_str(), std::ios::binary);
+	if (!tempFile.is_open())
+		return generateDefaultErrorPage(500, requestParse.getMethod());
+	this->_isTemp = true;
+	this->_bodyPath = tempFilePath;
+	tempFile.close();
 	pid_t pid = fork();
 	if (pid == -1)
-		return generateDefaultErrorPage(500);
+	{
+		return generateDefaultErrorPage(500, requestParse.getMethod());
+	}
 	else if (pid == 0)
 	{
-		close(pipefd[0]);
-		dup2(pipefd[1], STDOUT_FILENO);
-		dup2(pipefd[1], STDERR_FILENO);
-
-		close(pipefd[1]);
+		int inputFd = open(requestParse.getBodyPath().c_str(), O_RDONLY);
+		if (inputFd != -1)
+		{
+			dup2(inputFd, STDIN_FILENO);
+		}
+		int outputFd = open(tempFilePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+		if (outputFd == -1)
+		{
+			close(inputFd);
+			debugLogger("Failed to open CGI output file: " + tempFilePath);
+			exit(1);
+		}
+		dup2(outputFd, STDOUT_FILENO);
+		dup2(outputFd, STDERR_FILENO);
 
 		char *args[] = {const_cast<char *>(cgiPath.c_str()), const_cast<char *>(executeFilePath.c_str()), NULL};
 		execve(cgiPath.c_str(), args, &env[0]);
 		exit(1);
 	}
-	else
-	{
-		close(pipefd[1]);
-		int status;
-		waitpid(pid, &status, 0);
-		char buffer[4096];
-		ssize_t bytesRead;
-		while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0)
-		{
-			cgiOutput.append(buffer, bytesRead);
-		}
-		close(pipefd[0]);
-	}
+	int status;
+	waitpid(pid, &status, 0);
+	struct stat st;
+	if (stat(tempFilePath.c_str(), &st) == -1)
+		return generateDefaultErrorPage(500, requestParse.getMethod());
+	//* read cgi output from temp file and set only response "header attribute" with getline
 
-	std::string contentType;
-	if (this->_requestParse.getHeaders().find("Accept") != this->_requestParse.getHeaders().end())
+	readCgiOutput(st);
+	if (requestParse.getMethod() == HEAD)
 	{
-		contentType = this->_requestParse.getHeaders().at("Accept").substr(0, this->_requestParse.getHeaders().at("Accept").find(","));
+		std::remove(tempFilePath.c_str());
+		this->_isTemp = false;
+		return;
 	}
-	else
-		contentType = "application/octet-stream";
-	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(cgiOutput.size()) + "\r\n\r\n";
-	if (this->_requestParse.getMethod() == HEAD)
-		return Buffer(responseHeader);
-	return Buffer(responseHeader + cgiOutput);
+	this->_hasBody = true;
 }
 
-Buffer ResponseParse::autoindexExecute(const Route &selectedRoute, std::string requestingPath)
+void ResponseParse::autoindexExecute(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath)
 {
-	std::string path = selectedRoute.getRoot() + "/" + requestingPath;
+	std::string path = selectedRoute.getRoot() + requestingPath;
+	if (!selectedRoute.getIndex().empty())
+	{
+		if (!requestingPath.empty())
+			return serveFile(selectedRoute, requestParse, requestingPath);
+		else if (requestingPath.empty() && access((path + "/" + selectedRoute.getIndex()).c_str(), F_OK) == 0)
+			return serveFile(selectedRoute, requestParse, requestingPath);
+	}
+
 	if (access(path.c_str(), F_OK) == -1)
-		return generateDefaultErrorPage(404);
+		return generateDefaultErrorPage(404, requestParse.getMethod());
 	if (access(path.c_str(), R_OK) == -1)
-		return generateDefaultErrorPage(403);
+		return generateDefaultErrorPage(403, requestParse.getMethod());
 	struct stat pathStat;
 	if (stat(path.c_str(), &pathStat) == -1)
-		return generateDefaultErrorPage(500);
+		return generateDefaultErrorPage(500, requestParse.getMethod());
 	//* if file serve file
 	if (!S_ISDIR(pathStat.st_mode))
-		return serveFile(selectedRoute, requestingPath);
+		return serveFile(selectedRoute, requestParse, requestingPath);
 	//* if directory generate autoindex page
 	DIR *dir = opendir(path.c_str());
 	if (!dir)
-		return generateDefaultErrorPage(500);
+		return generateDefaultErrorPage(500, requestParse.getMethod());
 	struct dirent *entry;
 	std::string html = "<html><head><title>Index of " + requestingPath + "</title> <link rel=\"icon\" type=\"image/x-icon\" href=\"data:image/x-icon;base64," + std::string(W_FAVICON_BASE64) + "\"> </head><body><h1>Index of " + requestingPath + "</h1><ul>";
 	while ((entry = readdir(dir)) != NULL)
@@ -176,9 +309,15 @@ Buffer ResponseParse::autoindexExecute(const Route &selectedRoute, std::string r
 	html += "</ul></body></html>";
 	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(html.size()) + "\r\n\r\n";
 	closedir(dir);
-	if (this->_requestParse.getMethod() == HEAD)
-		return Buffer(responseHeader);
-	return Buffer(responseHeader + html);
+	if (requestParse.getMethod() == HEAD)
+	{
+		this->_hasBody = false;
+		this->_header = responseHeader;
+		return;
+	}
+	this->_hasBody = true;
+	this->_header = responseHeader;
+	this->_bodyContent = html;
 }
 
 static std::string getContentType(const std::string &filePath)
@@ -207,8 +346,13 @@ static std::string getContentType(const std::string &filePath)
 		return "application/octet-stream";
 }
 
-Buffer ResponseParse::serveFile(const Route &selectedRoute, std::string requestingPath)
+void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath)
 {
+	if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
+	{
+		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+		return;
+	}
 	if (requestingPath.empty() || requestingPath[0] != '/')
 		requestingPath = "/" + requestingPath;
 	if (requestingPath[requestingPath.size() - 1] == '/')
@@ -216,29 +360,28 @@ Buffer ResponseParse::serveFile(const Route &selectedRoute, std::string requesti
 	std::string filePath = selectedRoute.getRoot() + requestingPath;
 	struct stat fileStat;
 	if (stat(filePath.c_str(), &fileStat) == -1)
-		return generateDefaultErrorPage(500);
+		return generateDefaultErrorPage(404, requestParse.getMethod());
 	if (S_ISDIR(fileStat.st_mode))
 	{
 		if (requestingPath[requestingPath.size() - 1] != '/')
 			requestingPath += "/";
 		requestingPath += selectedRoute.getIndex();
 		filePath = selectedRoute.getRoot() + requestingPath;
+		if (stat(filePath.c_str(), &fileStat) == -1 || S_ISDIR(fileStat.st_mode))
+			return generateDefaultErrorPage(404, requestParse.getMethod());
 	}
 	if (access(filePath.c_str(), F_OK) == -1)
-		return generateDefaultErrorPage(404);
+		return generateDefaultErrorPage(404, requestParse.getMethod());
 	if (access(filePath.c_str(), R_OK) == -1)
-		return generateDefaultErrorPage(403);
+		return generateDefaultErrorPage(403, requestParse.getMethod());
 
 	std::ifstream file(filePath.c_str());
 	if (!file.is_open())
-		return generateDefaultErrorPage(500);
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	file.close();
+		return generateDefaultErrorPage(500, requestParse.getMethod());
 	std::string contentType = getContentType(filePath);
-	if (this->_requestParse.getHeaders().find("Accept") != this->_requestParse.getHeaders().end())
+	if (requestParse.getHeaders().find("Accept") != requestParse.getHeaders().end())
 	{
-		std::string acceptHeader = this->_requestParse.getHeaders().at("Accept");
+		std::string acceptHeader = requestParse.getHeaders().at("Accept");
 		std::vector<std::string> acceptedTypes;
 		std::istringstream acceptStream(acceptHeader);
 		std::string type;
@@ -249,43 +392,51 @@ Buffer ResponseParse::serveFile(const Route &selectedRoute, std::string requesti
 			acceptedTypes.push_back(type);
 		}
 		if (std::find(acceptedTypes.begin(), acceptedTypes.end(), contentType) == acceptedTypes.end() && std::find(acceptedTypes.begin(), acceptedTypes.end(), "*/*") == acceptedTypes.end())
-			return generateDefaultErrorPage(406);
+			return generateDefaultErrorPage(406, requestParse.getMethod());
 	}
-	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(buffer.str().size()) + "\r\n\r\n";
-	if (this->_requestParse.getMethod() == HEAD)
-		return Buffer(responseHeader);
-	return Buffer(responseHeader + buffer.str());
+	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(fileStat.st_size) + "\r\n\r\n";
+	if (requestParse.getMethod() == HEAD)
+	{
+		this->_hasBody = false;
+		this->_header = responseHeader;
+		return;
+	}
+	this->_hasBody = true;
+	this->_header = responseHeader;
+	this->_bodyPath = filePath;
 }
 
-Buffer ResponseParse::generateResponse()
+int ResponseParse::checkBodySize(const std::string &filePath, size_t clientMaxBodySize)
+{
+	struct stat st;
+	if (stat(filePath.c_str(), &st) == -1)
+		return 500;
+	if (clientMaxBodySize != 0 && static_cast<size_t>(st.st_size) > clientMaxBodySize)
+		return 413;
+	return 200;
+}
+
+void ResponseParse::generateResponse(RequestParse &requestParse)
 {
 	//* check if the request is valid
-	if (!this->_requestParse.isValid())
-	{
-		if (_serverConfig.getErrorPages().find(400) != _serverConfig.getErrorPages().end())
-		{
-			std::string errorPagePath = _serverConfig.getErrorPages().at(400);
-			std::ifstream errorPageFile(errorPagePath.c_str());
-			if (errorPageFile.is_open())
-			{
-				std::stringstream buffer;
-				buffer << errorPageFile.rdbuf();
-				errorPageFile.close();
-				size_t contentLength = buffer.str().size();
-				std::string responseHeader = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\nContent-Length: ";
-				responseHeader = responseHeader + ft_itos(contentLength) + "\r\n\r\n";
-				return Buffer(responseHeader + buffer.str());
-			}
-			else
-				return generateDefaultErrorPage(400);
-		}
-		else
-			return generateDefaultErrorPage(400);
-	}
-
+	int statusCode = requestParse.isValid();
+	if (statusCode < 200 || statusCode >= 300)
+		return generateDefaultErrorPage(statusCode, requestParse.getMethod());
 	Route selectedRoute;
-	std::string requestPath = this->_requestParse.getPath();
+	std::string requestPath = requestParse.getPath();
 	std::string requestingPath;
+
+	Route selectedCgiRoute;
+	size_t dotPos = requestPath.find_last_of('.');
+	size_t lastSlash = requestPath.find_last_of('/');
+	if (dotPos != std::string::npos && (lastSlash == std::string::npos || dotPos > lastSlash))
+	{
+		std::string ext = requestPath.substr(dotPos);
+		if (_serverConfig.getRoutes().find(ext) != _serverConfig.getRoutes().end())
+		{
+			selectedCgiRoute = _serverConfig.getRoutes().at(ext);
+		}
+	}
 	while (true)
 	{
 		if (_serverConfig.getRoutes().find(requestPath) != _serverConfig.getRoutes().end())
@@ -304,29 +455,84 @@ Buffer ResponseParse::generateResponse()
 			if (_serverConfig.getRoutes().find("/") != _serverConfig.getRoutes().end())
 			{
 				selectedRoute = _serverConfig.getRoutes().at("/");
-				requestingPath = this->_requestParse.getPath().substr(1);
+				requestingPath = requestParse.getPath().substr(1);
 				break;
 			}
 			else
-				return generateDefaultErrorPage(404);
+				return generateDefaultErrorPage(404, requestParse.getMethod());
 		}
 		std::string tail = requestPath.substr(lastSlashPos);
 		requestPath = requestPath.substr(0, lastSlashPos);
 		requestingPath = tail + requestingPath;
 	}
 
-	if (!selectedRoute.getMethods().empty() && !selectedRoute.hasMethod(this->_requestParse.getMethod()))
-		return generateDefaultErrorPage(405);
-
+	if (!selectedCgiRoute.getCgi().first.empty() && (!selectedCgiRoute.getMethods().empty() && !selectedCgiRoute.hasMethod(requestParse.getMethod())))
+	{
+		if ((!selectedRoute.getMethods().empty() && !selectedRoute.hasMethod(requestParse.getMethod())))
+			return generateDefaultErrorPage(405, requestParse.getMethod());
+	}
+	if (selectedCgiRoute.getCgi().first.empty() && selectedRoute.isAutoindex() == false)
+	{
+		if (!selectedRoute.getMethods().empty() && !selectedRoute.hasMethod(requestParse.getMethod()))
+			return generateDefaultErrorPage(405, requestParse.getMethod());
+	}
 	if (selectedRoute.getRedirect().first != 0)
 	{
 		std::string responseHeader = "HTTP/1.1 " + ft_itos(selectedRoute.getRedirect().first) + " Moved Permanently\r\nLocation: " + selectedRoute.getRedirect().second + "\r\n\r\n";
-		return Buffer(responseHeader);
+		if (!requestParse.getBodyPath().empty())
+			std::remove(requestParse.getBodyPath().c_str());
+		this->_hasBody = false;
+		this->_header = responseHeader;
+		return;
 	}
-	else if (!selectedRoute.getCgi().first.empty())
-		return cgiExecute(selectedRoute, requestingPath);
+	if (!requestParse.getBodyPath().empty())
+	{
+		int bodySizeCheck = checkBodySize(requestParse.getBodyPath(), selectedRoute.getClientMaxBodySize());
+		if (bodySizeCheck != 200)
+		{
+			std::remove(requestParse.getBodyPath().c_str());
+			return generateDefaultErrorPage(bodySizeCheck, requestParse.getMethod());
+		}
+	}
+	if (!selectedCgiRoute.getCgi().first.empty() && (selectedCgiRoute.getMethods().empty() || selectedCgiRoute.hasMethod(requestParse.getMethod())))
+		return cgiExecute(selectedRoute, selectedCgiRoute, requestParse, requestingPath);
 	else if (selectedRoute.isAutoindex())
-		return autoindexExecute(selectedRoute, requestingPath);
+		return autoindexExecute(selectedRoute, requestParse, requestingPath);
 	else
-		return serveFile(selectedRoute, requestingPath);
+		return serveFile(selectedRoute, requestParse, requestingPath);
+}
+
+const std::string &ResponseParse::getHeader() const
+{
+	return this->_header;
+}
+
+const std::string &ResponseParse::getBodyPath() const
+{
+	return this->_bodyPath;
+}
+
+bool ResponseParse::hasBody() const
+{
+	return this->_hasBody;
+}
+
+bool ResponseParse::isTemp() const
+{
+	return this->_isTemp;
+}
+
+const std::string &ResponseParse::getBodyContent() const
+{
+	return this->_bodyContent;
+}
+
+void ResponseParse::setSentSize(ssize_t size)
+{
+	this->sentSize = size;
+}
+
+ssize_t ResponseParse::getSentSize() const
+{
+	return this->sentSize;
 }

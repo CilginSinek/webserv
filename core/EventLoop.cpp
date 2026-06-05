@@ -11,21 +11,21 @@
 
 EventLoop::EventLoop(/* args */)
 {
-	epollFd =  epoll_create(1);
+	epollFd = epoll_create(1);
 }
 
 EventLoop::~EventLoop()
 {
-    if (epollFd != -1)
-        close(epollFd);
+	if (epollFd != -1)
+		close(epollFd);
 }
 
-void	EventLoop::run()
+void EventLoop::run()
 {
-	std::vector <ServerSocket *>::iterator it;
-	struct epoll_event 	events[1028];
-	bool				isServer;
-	int					event_count;
+	std::vector<ServerSocket *>::iterator it;
+	struct epoll_event events[1028];
+	bool isServer;
+	int event_count;
 
 	isServer = false;
 	while (true)
@@ -38,7 +38,7 @@ void	EventLoop::run()
 			isServer = 0;
 			for (it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
 			{
-				if ((*it)->getFd() == events[i].data.fd) 
+				if ((*it)->getFd() == events[i].data.fd)
 				{
 					isServer = true;
 					break;
@@ -47,42 +47,42 @@ void	EventLoop::run()
 			if (isServer)
 				handleServerSocket(*it);
 			else
-				handleClientEvent(events[i].data.fd, events[i].events); //EPOLLIN  EPOLLOUT EPOLLER EPOLLHUP
-		}		
+				handleClientEvent(events[i].data.fd, events[i].events); // EPOLLIN  EPOLLOUT EPOLLER EPOLLHUP
+		}
 	}
 }
 
-void	EventLoop::handleServerSocket(ServerSocket *socket)
+void EventLoop::handleServerSocket(ServerSocket *socket)
 {
 	int client_fd = socket->acceptClient();
 
 	if (client_fd != -1)
 	{
+		debugLogger("Accepted new client connection: fd " + ft_itos(client_fd));
 		this->_connections.insert(std::make_pair(client_fd, ClientConnection(client_fd, socket)));
-		fcntl(client_fd, F_SETFL, O_NONBLOCK); //client can send data to me 
+		fcntl(client_fd, F_SETFL, O_NONBLOCK); // client can send data to me
 		addConnection(client_fd, EPOLLIN);
 	}
-	
+
 	struct epoll_event ev;
-	ev.events = EPOLLIN; //inform me when client sends data
+	ev.events = EPOLLIN; // inform me when client sends data
 	ev.data.fd = client_fd;
-	epoll_ctl(epollFd, EPOLL_CTL_ADD, client_fd, &ev);  //added watch list
+	epoll_ctl(epollFd, EPOLL_CTL_ADD, client_fd, &ev); // added watch list
 }
 
-
-//control the three main event: connection error, client http request, http response
-void	EventLoop::handleClientEvent(int fd, u_int32_t events)
+// control the three main event: connection error, client http request, http response
+void EventLoop::handleClientEvent(int fd, u_int32_t events)
 {
-	char		buffer[1024];
-	int			bytes_read;
-	int			isKeepAlive = 1;
+	char buffer[1024];
+	int bytes_read;
+	int isKeepAlive = 1;
 
 	if ((events & EPOLLERR) || (events & EPOLLHUP))
 	{
 		this->_connections.erase(fd);
 		removeConnection(fd);
 		close(fd);
-		return ;
+		return;
 	}
 	if (events & EPOLLIN)
 	{
@@ -90,7 +90,10 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 		if (bytes_read > 0)
 		{
 			buffer[bytes_read] = '\0';
-			this->_connections[fd].addReadBuffer(Buffer(buffer));
+			if (this->_connections[fd].getState() == READING)
+				this->_connections[fd].addReadBuffer(std::string(buffer));
+			if (this->_connections[fd].getState() == HANDLING)
+				this->_connections[fd].handleRead();
 			modifyConnection(fd, EPOLLOUT);
 		}
 		else
@@ -98,22 +101,109 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 			this->_connections.erase(fd);
 			removeConnection(fd);
 			close(fd);
-
 		}
 	}
 	else if (events & EPOLLOUT)
 	{
-		while (this->_connections[fd].getState() == WRITING)
+		if (!this->_connections[fd].responseDataEmpty())
 		{
-			Buffer responseBuffer = this->_connections[fd].getWriteBuffer();
-			RequestParse requestParse(responseBuffer);
-			ResponseParse responseParse(requestParse, this->_connections[fd].getServerSocket()->getConfig());
-			debugLogger("Request fd " + ft_itos(fd) + ":\n" + responseBuffer);
-			responseBuffer = responseParse.generateResponse();
-
-			debugLogger("Response fd " + ft_itos(fd) + ":\n" + responseBuffer);
-			send(fd, responseBuffer.c_str(), responseBuffer.size(), 0); 
+			ResponseParse &res = this->_connections[fd].getCurrentResponseData();
+			if (this->_connections[fd].getState() == WRITING_HEADER)
+			{
+				this->_connections[fd].addWriteBuffer(res.getHeader());
+				while (this->_connections[fd].getWriteBuffer().size() > 0)
+				{
+					ssize_t sent = send(fd, this->_connections[fd].getWriteBuffer().c_str(), this->_connections[fd].getWriteBuffer().size(), 0);
+					if (sent <= 0)
+					{
+						this->_connections.erase(fd);
+						removeConnection(fd);
+						close(fd);
+						return;
+					}
+					this->_connections[fd].setWriteBuffer(this->_connections[fd].getWriteBuffer().substr(sent));
+				}
+				this->_connections[fd].setState(WRITING_BODY);
+			}
+			if (this->_connections[fd].getState() == WRITING_BODY)
+			{
+				if (!res.getBodyPath().empty())
+				{
+					char buffer[4096];
+					std::ifstream bodyFile(res.getBodyPath().c_str(), std::ios::binary);
+					if (!bodyFile.is_open())
+					{
+						this->_connections[fd].popCurrentResponseData();
+						if (this->_connections[fd].responseDataEmpty())
+							this->_connections[fd].setState(READING);
+						return;
+					}
+					if (!bodyFile.eof())
+					{
+						bodyFile.seekg(res.getSentSize());
+						bodyFile.read(buffer, sizeof(buffer));
+						std::streamsize bytesRead = bodyFile.gcount();
+						if (bytesRead > 0)
+						{
+							ssize_t sent = send(fd, buffer, bytesRead, 0);
+							if (sent <= 0)
+							{
+								if (res.isTemp())
+									std::remove(res.getBodyPath().c_str());
+								this->_connections.erase(fd);
+								removeConnection(fd);
+								close(fd);
+								return;
+							}
+							res.setSentSize(res.getSentSize() + std::min(bytesRead, static_cast<std::streamsize>(sent)));
+						}
+					}
+					if (bodyFile.eof())
+					{
+						debugLogger("Responsed fd:" + ft_itos(fd) + " path: " + res.getBodyPath());
+						bodyFile.close();
+						if (res.isTemp())
+							std::remove(res.getBodyPath().c_str());
+						this->_connections[fd].popCurrentResponseData();
+						if (this->_connections[fd].responseDataEmpty())
+							this->_connections[fd].setState(READING);
+					}
+					else{
+						modifyConnection(fd, EPOLLOUT);
+						return ;
+					}
+				}
+				else if (res.hasBody() && !res.getBodyContent().empty())
+				{
+					if (res.hasBody())
+					{
+						std::string bodyContent = res.getBodyContent();
+						while (bodyContent.size() > 0)
+						{
+							ssize_t sent = send(fd, bodyContent.c_str(), bodyContent.size(), 0);
+							if (sent <= 0)
+							{
+								this->_connections.erase(fd);
+								removeConnection(fd);
+								close(fd);
+								return;
+							}
+							bodyContent = bodyContent.substr(sent);
+						}
+					}
+					this->_connections[fd].popCurrentResponseData();
+					if (this->_connections[fd].responseDataEmpty())
+						this->_connections[fd].setState(READING);
+				}
+				else
+				{
+					this->_connections[fd].popCurrentResponseData();
+					if (this->_connections[fd].responseDataEmpty())
+						this->_connections[fd].setState(READING);
+				}
+			}
 		}
+
 		if (isKeepAlive)
 		{
 			modifyConnection(fd, EPOLLIN);
@@ -127,7 +217,7 @@ void	EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 }
 
-void 	EventLoop::addServerSocket(ServerSocket  *socket) 
+void EventLoop::addServerSocket(ServerSocket *socket)
 {
 	if (!socket)
 		return;
@@ -135,19 +225,18 @@ void 	EventLoop::addServerSocket(ServerSocket  *socket)
 	if (fd == -1)
 		return;
 
-		
-    if (addConnection(fd, EPOLLIN) == -1)
-    {
+	if (addConnection(fd, EPOLLIN) == -1)
+	{
 		throw std::runtime_error("epoll_ctl(ADD) server socket failed");
-    }
+	}
 	_serverSockets.push_back(socket);
 }
 
 // WRAPPER FUNCTIONS
 
-int	EventLoop::addConnection(int fd, u_int32_t events)
+int EventLoop::addConnection(int fd, u_int32_t events)
 {
-	struct epoll_event	ev;
+	struct epoll_event ev;
 
 	ev.events = events;
 	ev.data.fd = fd;
@@ -159,18 +248,18 @@ int	EventLoop::addConnection(int fd, u_int32_t events)
 	return (1);
 }
 
-void	EventLoop::modifyConnection(int fd, u_int32_t events)
+void EventLoop::modifyConnection(int fd, u_int32_t events)
 {
 	struct epoll_event ev;
 
 	ev.events = events;
 	ev.data.fd = fd;
 	if (epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &ev) == -1)
-	    std::cerr << "epoll_ctl (MOD) failed for fd: " << fd << std::endl;
+		std::cerr << "epoll_ctl (MOD) failed for fd: " << fd << std::endl;
 }
 
-void	EventLoop::removeConnection(int fd)
+void EventLoop::removeConnection(int fd)
 {
-    if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, NULL) == -1)
-        std::cerr << "epoll_ctl (DEL) failed for fd: " << fd << std::endl;
+	if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, NULL) == -1)
+		std::cerr << "epoll_ctl (DEL) failed for fd: " << fd << std::endl;
 }

@@ -13,24 +13,40 @@
 #include "utils/Buffer.hpp"
 #include "utils/Utils.hpp"
 
+typedef struct sResData tResData;
+
+
 class ResponseParse
 {
 private:
-
 	const ServerConfig &_serverConfig;
-	RequestParse _requestParse;
 
-	Buffer generateDefaultErrorPage(int errorCode) const;
-	Buffer cgiExecute(const Route &selectedRoute, std::string requestingPath);
-	Buffer autoindexExecute(const Route &selectedRoute, std::string requestingPath);
-	Buffer serveFile(const Route &selectedRoute, std::string requestingPath);
+	std::string _header;
+	std::string _bodyPath;
+	bool _isTemp;
+	bool _hasBody;
+	std::string _bodyContent;
+	ssize_t sentSize;
+
+	void cgiExecute(const Route &selectedRoute, const Route &selectedCgiRoute, const RequestParse &requestParse, std::string requestingPath);
+	void autoindexExecute(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath);
+	void serveFile(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath);
+	void generateDefaultErrorPage(int errorCode, t_method method);
+	void readCgiOutput(struct stat &st);
 	ResponseParse();
-
+	int checkBodySize(const std::string &filePath, size_t clientMaxBodySize);
 public:
-    ResponseParse(RequestParse& requestParse, const ServerConfig& config);
+	ResponseParse(const ServerConfig &config);
+	void setSentSize(ssize_t size);
+	ssize_t getSentSize() const;
+	const std::string &getHeader() const;
+	const std::string &getBodyPath() const;
+	bool hasBody() const;
+	bool isTemp() const;
+	const std::string &getBodyContent() const;
 	~ResponseParse();
 
-	Buffer generateResponse();
+	void generateResponse(RequestParse &requestParse);
 };
 
 #endif

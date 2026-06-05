@@ -41,6 +41,7 @@ private:
 	bool autoindex;
 	std::pair<int, std::string> redirect;
 	std::pair<std::string, std::string> cgi;
+	size_t clientMaxBodySize;
 
 public:
 	Route();
@@ -58,6 +59,7 @@ public:
 	bool isAutoindex() const;
 	const std::pair<int, std::string> &getRedirect() const;
 	const std::pair<std::string, std::string> &getCgi() const;
+	size_t getClientMaxBodySize() const;
 
 	void setPath(const std::string &path);
 	void insertMethod(const t_method method);
@@ -66,6 +68,7 @@ public:
 	void setAutoindex(bool autoindex);
 	void setRedirect(const std::pair<int, std::string> &redirect);
 	void setCgi(const std::pair<std::string, std::string> &cgi);
+	void setClientMaxBodySize(size_t clientMaxBodySize);
 
 	void checkRouteIsValid() const;
 

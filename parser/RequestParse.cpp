@@ -24,13 +24,18 @@ RequestParse &RequestParse::operator=(const RequestParse &other)
 		this->_version = other._version;
 		this->_headers = other._headers;
 		this->_query = other._query;
-		this->_body = other._body;
+		this->_bodyPath = other._bodyPath;
 	}
 	return *this;
 }
 
 RequestParse::~RequestParse()
 {
+}
+
+void RequestParse::setClientMaxBodySize(ssize_t size)
+{
+	this->clientMaxBodySize = size;
 }
 
 void RequestParse::setBuffer(Buffer buffer)
@@ -41,6 +46,21 @@ void RequestParse::setBuffer(Buffer buffer)
 const Buffer &RequestParse::getBuffer() const
 {
 	return this->_buffer;
+}
+
+const std::string &RequestParse::getBodyPath() const
+{
+	return this->_bodyPath;
+}
+
+size_t RequestParse::getBodySize() const
+{
+	return this->bodySize;
+}
+
+void RequestParse::setBodySize(size_t size)
+{
+	this->bodySize = size;
 }
 
 const t_method &RequestParse::getMethod() const
@@ -66,6 +86,11 @@ std::string RequestParse::getQuery() const
 const std::map<std::string, std::string> &RequestParse::getHeaders() const
 {
 	return this->_headers;
+}
+
+void RequestParse::setBodyPath(const std::string &path)
+{
+	this->_bodyPath = path;
 }
 
 bool RequestParse::setAndValidFLine(const std::string &firstLine)
@@ -149,14 +174,24 @@ bool RequestParse::setAndValidHeaders(const Buffer &buffer)
 }
 
 #include "utils/Utils.hpp"
-bool RequestParse::isValid()
+int RequestParse::isValid()
 {
 	std::string bufferStr = this->_buffer.c_str();
 	if (this->_buffer.empty())
-		return false;
+		return 400;
 	if (!this->setAndValidHeaders(this->_buffer))
-		return false;
-	Buffer bodyBuffer = this->_buffer.substr(this->_buffer.find("\r\n\r\n") + 4);
-	this->_body = bodyBuffer;
-	return true;
+		return 400;
+	if (this->_method == POST || this->_method == PUT)
+	{
+		if (this->_headers.find("Content-Length") == this->_headers.end() && this->_headers.find("Transfer-Encoding") == this->_headers.end())
+			return 411;
+		if (this->_headers.find("Content-Length") != this->_headers.end() && this->_headers.find("Transfer-Encoding") != this->_headers.end())
+			return 400;
+	}
+	else
+	{
+		if (this->_headers.find("Content-Length") != this->_headers.end() || this->_headers.find("Transfer-Encoding") != this->_headers.end())
+			return 400;
+	}
+	return 200;
 }

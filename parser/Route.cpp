@@ -7,6 +7,7 @@ Route::Route() : autoindex(false), redirect(std::make_pair(0, "")), cgi(std::mak
 	this->path = "";
 	this->root = "";
 	this->index = "";
+	this->clientMaxBodySize = 0;
 	this->methods.clear();
 }
 
@@ -25,6 +26,7 @@ Route &Route::operator=(const Route &other)
 		this->index = other.index;
 		this->autoindex = other.autoindex;
 		this->redirect = other.redirect;
+		this->clientMaxBodySize = other.clientMaxBodySize;
 		this->cgi = other.cgi;
 	}
 	return *this;
@@ -76,6 +78,11 @@ const std::pair<std::string, std::string> &Route::getCgi() const
 	return this->cgi;
 }
 
+size_t Route::getClientMaxBodySize() const
+{
+	return this->clientMaxBodySize;
+}
+
 void Route::setPath(const std::string &path)
 {
 	this->path = path;
@@ -113,6 +120,11 @@ void Route::setRedirect(const std::pair<int, std::string> &redirect)
 void Route::setCgi(const std::pair<std::string, std::string> &cgi)
 {
 	this->cgi = cgi;
+}
+
+void Route::setClientMaxBodySize(size_t clientMaxBodySize)
+{
+	this->clientMaxBodySize = clientMaxBodySize;
 }
 
 void Route::checkRouteIsValid() const

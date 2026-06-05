@@ -14,7 +14,9 @@ private:
 	std::string _version;
 	std::map<std::string, std::string> _headers;
 	std::string _query;
-	Buffer _body;
+	std::string _bodyPath;
+	size_t bodySize;
+	ssize_t clientMaxBodySize;
 
 	bool setAndValidFLine(const std::string &firstLine);
 	bool setAndValidHeaders(const Buffer &headersBuffer);
@@ -26,15 +28,20 @@ public:
 	RequestParse &operator=(const RequestParse &other);
 	~RequestParse();
 
+	void setClientMaxBodySize(ssize_t size);
 	void setBuffer(Buffer buffer);
+	void setBodyPath(const std::string &path);
+	void setBodySize(size_t size);
+	size_t getBodySize() const;
 	const Buffer &getBuffer() const;
 	const t_method &getMethod() const;
 	const std::string &getPath() const;
 	const std::string &getVersion() const;
 	std::string getQuery() const;
 	const std::map<std::string, std::string> &getHeaders() const;
+	const std::string &getBodyPath() const;
 	void addHeader(std::string key, std::string value);
-	bool isValid();
+	int isValid();
 };
 
 #endif
