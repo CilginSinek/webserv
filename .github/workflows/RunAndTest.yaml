@@ -1,0 +1,45 @@
+name: Make and Test
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+    workflow_dispatch:
+
+jobs:
+    make-and-test:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+
+        - name: update and install dependencies
+          run: sudo apt-get update
+
+        - name: Set up C++ environment
+          run: sudo apt-get install build-essential
+
+        - name: Build the project
+          run: make
+
+        - name: Run tests
+          id: test_step
+          run: |
+            set -o pipefail
+            make test |& tee -a output.txt
+            echo "test_status=$?" >> $GITHUB_ENV
+
+        - name: Upload login debug artifacts
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: output.txt
+            path: artifacts/*
+            if-no-files-found: ignore
+            retention-days: 1
+
+        - name: Cancel workflow quietly if tests failed
+          if: env.test_status != '0'
+          uses: andymckay/cancel-action@0.5

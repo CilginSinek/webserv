@@ -16,7 +16,9 @@ PARSER_SRCS=parser/Config.cpp \
 			parser/RequestParse.cpp parser/ResponseParse.cpp \
 			network/ClientConnection.cpp network/AConnection.cpp 
 
-all: $(NAME)
+TEMP_DIR=./temp
+
+all: $(NAME) $(TEMP_DIR)
 
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
@@ -25,12 +27,16 @@ $(OBJ_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+$(TEMP_DIR):
+	mkdir -p $(TEMP_DIR)
+
 clean:
 	$(RM) $(OBJS)
 	$(RMDIR) $(OBJ_DIR)
 
 fclean: clean
 	$(RM) $(NAME)
+	$(RMDIR) $(TEMP_DIR)
 
 re: fclean all
 

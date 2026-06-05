@@ -30,6 +30,8 @@ private:
 	Buffer _writeBuffer;
 	ServerSocket *_serverSocket;
 	tConnectionState _state;
+	//* debug
+	ssize_t responseCount;
 	time_t _lastActiveTime;
 	std::queue<tReqData> _requestDataList;
 	std::queue<ResponseParse> _responseDataList;
@@ -63,4 +65,8 @@ public:
 	const Buffer &getWriteBuffer();
 	bool isNeedToClose() const;
 	tConnectionState getState() const;
+
+	//* debug
+	void setResponseCount(ssize_t count);
+	ssize_t getResponseCount() const;
 };

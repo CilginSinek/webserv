@@ -160,7 +160,8 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 					}
 					if (bodyFile.eof())
 					{
-						debugLogger("Responsed fd:" + ft_itos(fd) + " path: " + res.getBodyPath());
+						debugLogger("Responsed fd:" + ft_itos(fd) + " path: " + res.getBodyPath() + "Response count: " + ft_itos(this->_connections[fd].getResponseCount()));
+						this->_connections[fd].setResponseCount(this->_connections[fd].getResponseCount() + 1);
 						bodyFile.close();
 						if (res.isTemp())
 							std::remove(res.getBodyPath().c_str());

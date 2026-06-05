@@ -9,6 +9,7 @@ ClientConnection::ClientConnection(): AConnection(-1)
 
 ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : AConnection(fd), _readBuffer(""), _writeBuffer(""), _serverSocket(serverSocket), _state(READING), _lastActiveTime(time(NULL))
 {
+	this->responseCount = 0;
 }
 
 ClientConnection::ClientConnection(const ClientConnection &other): AConnection(other)
@@ -26,6 +27,7 @@ ClientConnection &ClientConnection::operator=(const ClientConnection &other)
 		this->_serverSocket = other._serverSocket;
 		this->_state = other._state;
 		this->_lastActiveTime = other._lastActiveTime;
+		this->responseCount = other.responseCount;
 	}
 	return *this;
 }
@@ -203,6 +205,7 @@ void ClientConnection::handleRead()
 	request.setBodyPath(this->_requestDataList.front().bodyFilePath);
 	request.setClientMaxBodySize(this->_serverSocket->getConfig().getClientMaxBodySize());
 	request.setBodySize(this->_requestDataList.front().bodySize);
+	debugLogger("Request header:\n" + this->_requestDataList.front().header);
 	ResponseParse response(this->_serverSocket->getConfig());
 	response.generateResponse(request);
 	this->_responseDataList.push(response);
@@ -294,4 +297,15 @@ void ClientConnection::popCurrentResponseData()
 bool ClientConnection::responseDataEmpty() const
 {
 	return this->_responseDataList.empty();
+}
+
+//* debug
+void ClientConnection::setResponseCount(ssize_t count)
+{
+	this->responseCount = count;
+}
+
+ssize_t ClientConnection::getResponseCount() const
+{
+	return this->responseCount;
 }
