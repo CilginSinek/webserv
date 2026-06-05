@@ -26,17 +26,42 @@ jobs:
 
         - name: Run tests
           id: test_step
+          shell: bash
           run: |
-            set -o pipefail
-            make test |& tee -a output.txt
-            echo "test_status=$?" >> $GITHUB_ENV
+            chmod +x ./tester ./cgi_tester
+            
+            # Start webserv in background and redirect output to output.txt
+            ./webserv test.conf > output.txt 2>&1 &
+            SERVER_PID=$!
+            
+            # Wait for the server to start listening (up to 10 seconds)
+            echo "Waiting for webserv to start..."
+            for i in {1..10}; do
+              if nc -z localhost 3131; then
+                echo "webserv is up and listening on port 3131."
+                break
+              fi
+              sleep 1
+            done
+            
+            # Run the tester and log to console + output.txt
+            echo "Running tester..."
+            ./tester http://localhost:3131 2>&1 | tee -a output.txt
+            TEST_EXIT_CODE=${PIPESTATUS[0]}
+            
+            # Terminate the server
+            echo "Stopping webserv..."
+            kill $SERVER_PID || true
+            
+            # Export the test status
+            echo "test_status=$TEST_EXIT_CODE" >> $GITHUB_ENV
 
         - name: Upload login debug artifacts
           if: always()
           uses: actions/upload-artifact@v4
           with:
             name: output.txt
-            path: artifacts/*
+            path: ./output.txt
             if-no-files-found: ignore
             retention-days: 1
 
