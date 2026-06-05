@@ -139,7 +139,6 @@ void ClientConnection::addReadBuffer(const Buffer &buffer)
 						if (chunkSize == 0)
 						{
 							consumed = chunkedPos + 2 + 2;
-							this->_readBuffer.erase(0, consumed);
 							this->_requestDataList.back().complete = true;
 							break;
 						}
