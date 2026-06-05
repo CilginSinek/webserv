@@ -110,6 +110,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 			ResponseParse &res = this->_connections[fd].getCurrentResponseData();
 			if (this->_connections[fd].getState() == WRITING_HEADER)
 			{
+				debugLogger("Responsed fd:" + ft_itos(fd) + " path: " + res.getBodyPath());
 				this->_connections[fd].addWriteBuffer(res.getHeader());
 				while (this->_connections[fd].getWriteBuffer().size() > 0)
 				{
