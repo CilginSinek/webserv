@@ -138,6 +138,8 @@ void ClientConnection::addReadBuffer(const Buffer &buffer)
 						size_t chunkSize = strtoul(chunkSizeStr.c_str(), NULL, 16);
 						if (chunkSize == 0)
 						{
+							if (this->_readBuffer.size() < chunkedPos + 4)
+								break;
 							consumed = chunkedPos + 2 + 2;
 							this->_requestDataList.back().complete = true;
 							break;
