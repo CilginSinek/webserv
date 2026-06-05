@@ -31,7 +31,7 @@ jobs:
             chmod +x ./tester ./cgi_tester
             
             # Start webserv in background and redirect output to output.txt
-            ./webserv test.conf > output.txt 2>&1 &
+            ./webserv test.conf > server_output.txt 2>&1 &
             SERVER_PID=$!
             
             # Wait for the server to start listening (up to 10 seconds)
@@ -44,14 +44,15 @@ jobs:
               sleep 1
             done
             
-            # Run the tester and log to console + output.txt
+            # Run the tester and log to console + tester_output.txt
             echo "Running tester..."
-            ./tester http://localhost:3131 2>&1 | tee -a output.txt
-            TEST_EXIT_CODE=${PIPESTATUS[0]}
+            ./tester http://localhost:3131 > tester_output.txt 2>&1
+            TEST_EXIT_CODE=$?
+            cat tester_output.txt
             
             # Terminate the server
             echo "Stopping webserv..."
-            kill $SERVER_PID || true
+            kill $SERVER_PID || true  
             
             # Export the test status
             echo "test_status=$TEST_EXIT_CODE" >> $GITHUB_ENV
@@ -60,8 +61,17 @@ jobs:
           if: always()
           uses: actions/upload-artifact@v4
           with:
-            name: output.txt
-            path: ./output.txt
+            name: server_output.txt
+            path: ./server_output.txt
+            if-no-files-found: ignore
+            retention-days: 1
+
+        - name: Upload login debug artifacts
+          if: always()
+          uses: actions/upload-artifact@v4
+          with:
+            name: tester_output.txt
+            path: ./tester_output.txt
             if-no-files-found: ignore
             retention-days: 1
 
