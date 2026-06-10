@@ -42,6 +42,7 @@ private:
 	std::pair<int, std::string> redirect;
 	std::pair<std::string, std::string> cgi;
 	size_t clientMaxBodySize;
+	bool upload;
 
 public:
 	Route();
@@ -60,6 +61,7 @@ public:
 	const std::pair<int, std::string> &getRedirect() const;
 	const std::pair<std::string, std::string> &getCgi() const;
 	size_t getClientMaxBodySize() const;
+	bool isUpload() const;
 
 	void setPath(const std::string &path);
 	void insertMethod(const t_method method);
@@ -69,6 +71,7 @@ public:
 	void setRedirect(const std::pair<int, std::string> &redirect);
 	void setCgi(const std::pair<std::string, std::string> &cgi);
 	void setClientMaxBodySize(size_t clientMaxBodySize);
+	void setUpload(bool upload);
 
 	void checkRouteIsValid() const;
 

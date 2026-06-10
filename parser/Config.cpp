@@ -346,6 +346,21 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 			i++;
 			i++; // Skip ';')
 		}
+		else if (tokens[i] == "upload")
+		{
+			i++;
+			if (i >= tokens.size())
+				throw std::runtime_error("Expected value for upload but got EOF");
+			std::string val = tokens[i];
+			if (val == "on")
+				route.setUpload(true);
+			else if (val == "off")
+				route.setUpload(false);
+			else
+				throw std::runtime_error("Expected 'on' or 'off' for upload but got '" + val + "'");
+			i++;
+			i++; // Skip ';')
+		}
 		else
 		{
 			throw std::runtime_error("Unexpected token in route block: '" + tokens[i] + "'");
