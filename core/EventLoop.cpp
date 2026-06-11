@@ -325,4 +325,6 @@ void EventLoop::closeIdleConnections()
 	}
 	for (std::vector<int>::iterator it = toClose.begin(); it != toClose.end(); ++it)
 		closeConnection(*it);
+	for (std::vector<ServerSocket *>::iterator it = _serverSockets.begin(); it != _serverSockets.end(); ++it)
+		(*it)->cleanSessions();
 }

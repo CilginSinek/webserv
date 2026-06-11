@@ -260,9 +260,7 @@ void ClientConnection::handleRead()
 		const ServerConfig &selectedConfig = this->_serverSocket->getConfigForHost(getHostHeader(request.getHeaders()));
 		ResponseParse response(selectedConfig, session);
 		this->_serverSocket->compareAndSetSession(response.getSession());
-		this->_serverSocket->cleanSessions();
 		response.generateResponse(request);
-		this->_serverSocket->cleanSessions();
 		this->_closeAfterResponse = hasConnectionClose(request.getHeaders());
 		this->_responseDataList.push(response);
 		if (!this->_requestDataList.front().bodyFilePath.empty())
