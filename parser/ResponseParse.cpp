@@ -648,7 +648,7 @@ ssize_t ResponseParse::getSentSize() const
 }
 
 
-Session &ResponseParse::getSession() const
+const Session &ResponseParse::getSession() const
 {
 	return this->_session;
 }

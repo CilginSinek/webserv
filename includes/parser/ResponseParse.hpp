@@ -48,7 +48,7 @@ public:
 	bool hasBody() const;
 	bool isTemp() const;
 	const std::string &getBodyContent() const;
-	Session &getSession() const;
+	const Session &getSession() const;
 	~ResponseParse();
 
 	void generateResponse(RequestParse &requestParse);
