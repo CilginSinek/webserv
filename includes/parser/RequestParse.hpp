@@ -2,6 +2,7 @@
 #define _REQUEST_PARSE_HPP_
 
 #include "utils/Buffer.hpp"
+#include "utils/Utils.hpp"
 #include "ServerConfig.hpp"
 #include <algorithm>
 

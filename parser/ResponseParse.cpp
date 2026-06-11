@@ -188,9 +188,9 @@ void ResponseParse::readCgiOutput(struct stat &st)
 		size_t headerEndPos = this->_header.find("\r\n\r\n");
 		std::string headerCookie = "Set-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\n";
 		if (headerEndPos != std::string::npos)
-			this->_header = this->_header.substr(0, headerEndPos) + "\r\n" + headerCookie + this->_header.substr(headerEndPos + 4);
+			this->_header = this->_header.substr(0, headerEndPos) + "\r\n" + headerCookie + "\r\n";
 		else
-			this->_header += "\r\n" + headerCookie;
+			this->_header += "\r\n" + headerCookie + "\r\n\r\n";
 	}
 	else
 	{
@@ -200,7 +200,7 @@ void ResponseParse::readCgiOutput(struct stat &st)
 		if (cookieEndPos != std::string::npos)
 			this->_header = this->_header.substr(0, cookiePos) + newCookie + this->_header.substr(cookieEndPos);
 		else
-			this->_header = this->_header.substr(0, cookiePos) + newCookie;
+			this->_header = this->_header.substr(0, cookiePos) + newCookie + "\r\n";
 	}
 	std::string tmpHeader = this->_header;
 	size_t pos = 0;
@@ -530,6 +530,7 @@ void ResponseParse::generateResponse(RequestParse &requestParse)
 {
 	//* check if the request is valid
 	int statusCode = requestParse.isValid();
+	debugLogger("Request validation status code: " + ft_itos(statusCode));
 	if (statusCode < 200 || statusCode >= 300)
 		return generateDefaultErrorPage(statusCode, requestParse.getMethod());
 	Route selectedRoute;

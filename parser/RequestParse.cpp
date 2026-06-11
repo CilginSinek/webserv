@@ -171,7 +171,6 @@ bool RequestParse::setAndValidHeaders(const Buffer &buffer)
 	return true;
 }
 
-#include "utils/Utils.hpp"
 int RequestParse::isValid()
 {
 	std::string bufferStr = this->_buffer.c_str();
