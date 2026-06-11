@@ -33,6 +33,8 @@ private:
 	void serveFile(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath);
 	void generateDefaultErrorPage(int errorCode, t_method method);
 	void readCgiOutput(struct stat &st);
+	void handleUpload(std::string uploadPath, std::string bodyPath, t_method method);
+	void handleRemove(std::string filePath, t_method method);
 	ResponseParse();
 	int checkBodySize(const std::string &filePath, size_t clientMaxBodySize);
 public:

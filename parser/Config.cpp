@@ -276,8 +276,6 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 					route.insertMethod(DELETE);
 				else if (tokens[i] == "PUT")
 					route.insertMethod(PUT);
-				else if (tokens[i] == "TRACE")
-					route.insertMethod(TRACE);
 				else if (tokens[i] == "HEAD")
 					route.insertMethod(HEAD);
 				else if (tokens[i] == "OPTIONS")
