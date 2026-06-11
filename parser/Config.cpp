@@ -18,6 +18,11 @@ Config::Config()
 
 static std::string readConfFile(const std::string &config_file)
 {
+	//* access check
+	if (access(config_file.c_str(), F_OK) != 0)
+		throw std::runtime_error("Config file '" + config_file + "' is does not exist");
+	if (access(config_file.c_str(), R_OK) != 0)
+		throw std::runtime_error("Config file '" + config_file + "' is not readable");
 	std::ifstream file(config_file.c_str());
 	if (!file.is_open())
 		throw std::runtime_error("Could not open config file: " + config_file);
@@ -26,10 +31,11 @@ static std::string readConfFile(const std::string &config_file)
 	while (getline(file, line))
 	{
 		if (isIgnoredLine(line))
-			continue; // Skip empty lines and comments
+			continue;
 		buffer << line << "\n";
 	}
-	debugLogger("Config file '" + config_file + "' read successfully with size " + ft_itos(buffer.str().size()) + " bytes");
+	if (buffer.str().empty())
+		throw std::runtime_error("Config file '" + config_file + "' is empty");
 	return buffer.str();
 }
 
@@ -78,6 +84,10 @@ void Config::parseServerAttr(Config &cf, const std::vector<std::string> &tokens,
 		if (i >= tokens.size())
 			throw std::runtime_error("Expected port number for listen but got EOF");
 		std::string ip_port = tokens[i];
+		if (cf.servers.back().getPort() != 0)
+			throw std::runtime_error("Duplicate listen directive in server block");
+		if (cf.servers.back().getServerIp() != "")
+			throw std::runtime_error("Duplicate listen directive in server block");
 		size_t colon_pos = ip_port.find(':');
 		if (colon_pos != std::string::npos)
 		{
@@ -336,6 +346,21 @@ void Config::parseRoute(Config &cf, const std::vector<std::string> &tokens, size
 			i++;
 			i++; // Skip ';')
 		}
+		else if (tokens[i] == "upload")
+		{
+			i++;
+			if (i >= tokens.size())
+				throw std::runtime_error("Expected value for upload but got EOF");
+			std::string val = tokens[i];
+			if (val == "on")
+				route.setUpload(true);
+			else if (val == "off")
+				route.setUpload(false);
+			else
+				throw std::runtime_error("Expected 'on' or 'off' for upload but got '" + val + "'");
+			i++;
+			i++; // Skip ';')
+		}
 		else
 		{
 			throw std::runtime_error("Unexpected token in route block: '" + tokens[i] + "'");
@@ -376,10 +401,7 @@ void Config::parseConfig(Config &cf, const std::vector<std::string> &tokens)
 
 Config::Config(const std::string &config_file)
 {
-	debugLogger("Reading config file '" + config_file + "'...");
 	std::vector<std::string> tokens = splitConfString(readConfFile(config_file));
-	debugLogger("Config file '" + config_file + "' read successfully");
-	debugLogger("Config file tokenized successfully with " + ft_itos(tokens.size()) + " tokens");
 	try
 	{
 		parseConfig(*this, tokens);
@@ -404,64 +426,6 @@ void Config::checkConfigIsValid() const
 	for (size_t i = 0; i < this->servers.size(); i++)
 	{
 		this->servers[i].checkIsValidServer();
-	}
-}
-
-
-void configPrinter(const Config &config)
-{
-	const std::vector<ServerConfig> &servers = config.getServers();
-	for (size_t i = 0; i < servers.size(); i++)
-	{
-		const ServerConfig &server = servers[i];
-		std::cout << "Server " << i + 1 << ":" << std::endl;
-		std::cout << "  IP: " << server.getServerIp() << std::endl;
-		std::cout << "  Port: " << server.getPort() << std::endl;
-		std::cout << "  Server Name: " << server.getServerName() << std::endl;
-		std::cout << "  Keepalive Timeout: " << server.getKeepaliveTimeout() << std::endl;
-		std::cout << "  Client Max Body Size: " << server.getClientMaxBodySize() << std::endl;
-		std::cout << "  Error Pages:" << std::endl;
-		const std::map<int, std::string> &error_pages = server.getErrorPages();
-		for (std::map<int, std::string>::const_iterator it = error_pages.begin(); it != error_pages.end(); ++it)
-		{
-			std::cout << "    " << it->first << ": " << it->second << std::endl;
-		}
-		std::cout << "  Routes:" << std::endl;
-		const std::map<std::string, Route> &routes = server.getRoutes();
-		for (std::map<std::string, Route>::const_iterator it = routes.begin(); it != routes.end(); ++it)
-		{
-			const Route &route = it->second;
-			std::cout << "    Path: " << route.getPath() << std::endl;
-			std::cout << "      Root: " << route.getRoot() << std::endl;
-			std::cout << "      Autoindex: " << (route.isAutoindex() ? "on" : "off") << std::endl;
-			std::cout << "      Index: " << route.getIndex() << std::endl;
-			std::cout << "      Client Max Body Size: " << route.getClientMaxBodySize() << std::endl;
-			std::cout << "      Methods:";
-			if (route.hasMethod(GET))
-				std::cout << " GET";
-			if (route.hasMethod(POST))
-				std::cout << " POST";
-			if (route.hasMethod(DELETE))
-				std::cout << " DELETE";
-			if (route.hasMethod(PUT))
-				std::cout << " PUT";
-			if (route.hasMethod(TRACE))
-				std::cout << " TRACE";
-			if (route.hasMethod(HEAD))
-				std::cout << " HEAD";
-			if (route.hasMethod(OPTIONS))
-				std::cout << " OPTIONS";
-			std::cout << std::endl;
-			if (route.getRedirect().first != 0)
-			{
-				std::cout << "      Redirect: " << route.getRedirect().first << " " << route.getRedirect().second << std::endl;
-			}
-			if (!route.getCgi().first.empty())
-			{
-				std::cout << "      CGI: " << route.getCgi().first << " -> " << route.getCgi().second << std::endl;
-			}
-		}
-		std::cout << std::endl;
 	}
 }
 

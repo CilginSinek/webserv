@@ -4,8 +4,8 @@
 //* Constructor and Destructor
 ServerConfig::ServerConfig() : keepalive_timeout(0)
 {
-	this->server_ip = "0.0.0.0";
-	this->port = 3131;
+	this->server_ip = "";
+	this->port = 0;
 	this->server_name = "localhost";
 	this->error_pages.clear();
 	this->routes.clear();

@@ -2,7 +2,7 @@
 
 //* Constructor and Destructor
 
-Route::Route() : autoindex(false), redirect(std::make_pair(0, "")), cgi(std::make_pair("", ""))
+Route::Route() : autoindex(false), redirect(std::make_pair(0, "")), cgi(std::make_pair("", "")), upload(false)
 {
 	this->path = "";
 	this->root = "";
@@ -68,6 +68,11 @@ bool Route::isAutoindex() const
 	return this->autoindex;
 }
 
+bool Route::isUpload() const
+{
+	return this->upload;
+}
+
 const std::pair<int, std::string> &Route::getRedirect() const
 {
 	return this->redirect;
@@ -125,6 +130,11 @@ void Route::setCgi(const std::pair<std::string, std::string> &cgi)
 void Route::setClientMaxBodySize(size_t clientMaxBodySize)
 {
 	this->clientMaxBodySize = clientMaxBodySize;
+}
+
+void Route::setUpload(bool upload)
+{
+	this->upload = upload;
 }
 
 void Route::checkRouteIsValid() const
