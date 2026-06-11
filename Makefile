@@ -1,8 +1,7 @@
-#* NEED TO BE REFACTORED
 NAME=webserv
 CXX=c++
 CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g -I includes
-SRCS=main.cpp $(PARSER_SRCS) $(UTILS_SRCS)
+SRCS=main.cpp $(PARSER_SRCS) $(UTILS_SRCS) $(CORE_SRCS) $(NETWORK_SRCS)
 OBJ_DIR=obj
 OBJS=$(addprefix $(OBJ_DIR)/,$(SRCS:.cpp=.o))
 RM=rm -f
@@ -10,12 +9,14 @@ RMDIR=rm -rf
 
 UTILS_SRCS=utils/Utils.cpp utils/Buffer.cpp
 
-PARSER_SRCS=parser/Config.cpp \
-			parser/ServerConfig.cpp \
-			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp \
-			parser/RequestParse.cpp parser/ResponseParse.cpp \
-			network/ClientConnection.cpp network/AConnection.cpp \
-			network/Session.cpp
+PARSER_SRCS=parser/Config.cpp parser/ServerConfig.cpp \
+			parser/Route.cpp  parser/RequestParse.cpp \
+			parser/ResponseParse.cpp 
+
+CORE_SRCS= core/EventLoop.cpp
+
+NETWORK_SRCS=network/ClientConnection.cpp network/AConnection.cpp \
+			network/Session.cpp network/ServerSocket.cpp
 
 TEMP_DIR=./temp
 
