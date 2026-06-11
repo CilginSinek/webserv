@@ -9,15 +9,23 @@
 #include <cstdio>
 #include <cstring>
 
-EventLoop::EventLoop(/* args */)
+EventLoop::EventLoop(/* args */) : _stopSignal(NULL)
 {
 	epollFd = epoll_create(1);
 }
 
 EventLoop::~EventLoop()
 {
+	for (std::map<int, ClientConnection>::iterator it = _connections.begin(); it != _connections.end(); ++it)
+		close(it->first);
+	_connections.clear();
 	if (epollFd != -1)
 		close(epollFd);
+}
+
+void EventLoop::setStopSignal(volatile sig_atomic_t *stopSignal)
+{
+	_stopSignal = stopSignal;
 }
 
 void EventLoop::run()
@@ -28,7 +36,7 @@ void EventLoop::run()
 	int event_count;
 
 	isServer = false;
-	while (true)
+	while (!_stopSignal || !*_stopSignal)
 	{
 		event_count = (epoll_wait(epollFd, events, 1028, 100));
 		if (event_count == -1)
@@ -63,11 +71,6 @@ void EventLoop::handleServerSocket(ServerSocket *socket)
 		fcntl(client_fd, F_SETFL, O_NONBLOCK); // client can send data to me
 		addConnection(client_fd, EPOLLIN);
 	}
-
-	struct epoll_event ev;
-	ev.events = EPOLLIN; // inform me when client sends data
-	ev.data.fd = client_fd;
-	epoll_ctl(epollFd, EPOLL_CTL_ADD, client_fd, &ev); // added watch list
 }
 
 // control the three main event: connection error, client http request, http response
