@@ -38,6 +38,7 @@ private:
 	std::queue<ResponseParse> _responseDataList;
 	ssize_t getRequestSize(const Buffer &buffer) const;
 	size_t getRequestBodySize(const Buffer &buffer) const;
+	Session addSession(const std::string &header);
 
 public:
 	ClientConnection();

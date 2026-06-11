@@ -1,7 +1,7 @@
 #include "network/ServerSocket.hpp"
-#include <sys/socket.h>  // socket() setsockopt() bind() listen() accept()
+#include <sys/socket.h> // socket() setsockopt() bind() listen() accept()
 #include <netinet/in.h> // sockaddr_i AF_INEY INADDR_ANY htons()
-#include <arpa/inet.h> // inet_pton()
+#include <arpa/inet.h>  // inet_pton()
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
@@ -17,48 +17,47 @@ ServerSocket::ServerSocket(ServerConfig serverConfig) : _fd(-1)
 
 ServerSocket::~ServerSocket()
 {
-	if (_fd != -1)
-	{
-		::close(_fd);
-	}
+    if (_fd != -1)
+    {
+        ::close(_fd);
+    }
 }
-
 
 void ServerSocket::open()
 {
     if (_fd != -1)
         return;
 
-	/*  AF_INET: I use IPv4  
-		SOCK_STREAM: TCP socket
-		0: protocol opens automaticly */
+    /*  AF_INET: I use IPv4
+        SOCK_STREAM: TCP socket
+        0: protocol opens automaticly */
 
     _fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (_fd == -1)
-	/*	errno:	Permission denied
-				Too many open files
-				Address family not supported */
+        /*	errno:	Permission denied
+                    Too many open files
+                    Address family not supported */
         throw std::runtime_error(std::string("socket() failed: ") + std::strerror(errno));
 
     int opt = 1;
-	/*	it's socket settings function
-		give option to socket.  SOL_SOCKET,
-		SO_REUSEADDR: can use same port again after the short time. It blocks TIME_WAIT feasability. */
+    /*	it's socket settings function
+        give option to socket.  SOL_SOCKET,
+        SO_REUSEADDR: can use same port again after the short time. It blocks TIME_WAIT feasability. */
     if (setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
     {
         ::close(_fd);
         _fd = -1;
         throw std::runtime_error(std::string("setsockopt() failed: ") + std::strerror(errno));
     }
-	/* this is a struct which store the ipv4 informations sin_family sin_port sin_addr*/
+    /* this is a struct which store the ipv4 informations sin_family sin_port sin_addr*/
     struct sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET; //ipv4
+    addr.sin_family = AF_INET; // ipv4
 
     int port =  getConfig().getPort(); 
     const char *host_cstr = getConfig().getServerIp().c_str();
 
-	/* Turn port value into network byte order*/
+    /* Turn port value into network byte order*/
     addr.sin_port = htons(port);
     if (inet_pton(AF_INET, host_cstr, &addr.sin_addr) != 1)
     {
@@ -66,8 +65,8 @@ void ServerSocket::open()
         _fd = -1;
         throw std::runtime_error("invalid listen address");
     }
-	/*	connect socket to host/port 
-		"I will listen on this IP and port."*/
+    /*	connect socket to host/port
+        "I will listen on this IP and port."*/
     if (bind(_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1) // ?
     {
         ::close(_fd);
@@ -125,7 +124,7 @@ void ServerSocket::setNonBlocking(int fd)
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-const ServerConfig& ServerSocket::getConfig() const
+const ServerConfig &ServerSocket::getConfig() const
 {
     return _configs.front();
 }
@@ -149,4 +148,56 @@ const ServerConfig& ServerSocket::getConfigForHost(const std::string &host) cons
 int ServerSocket::getFd()
 {
     return (_fd);
+}
+
+
+Session ServerSocket::getAddSession(const std::string &id)
+{
+    if (id.empty())
+    {
+        Session newSession(Session::generateId());
+        this->_sessions[newSession.getId()] = newSession;
+        return newSession;
+    }
+    for (std::map<std::string, Session>::iterator it = this->_sessions.begin(); it != this->_sessions.end(); ++it)
+    {
+        if (it->first == id)
+            return it->second;
+    }
+    Session newSession(id);
+    this->_sessions[id] = newSession;
+    return newSession;
+}
+
+void ServerSocket::cleanSessions()
+{
+    std::vector<std::string> toRemove;
+    time_t currentTime = time(NULL);
+    for (std::map<std::string, Session>::iterator it = this->_sessions.begin(); it != this->_sessions.end(); ++it)
+    {
+        if (difftime(currentTime, it->second.getLastAccessTime()) > 3600)
+            toRemove.push_back(it->first);
+    }
+    for (std::vector<std::string>::iterator it = toRemove.begin(); it != toRemove.end(); ++it)
+    {
+        this->_sessions.erase(*it);
+    }
+}
+
+void ServerSocket::compareAndSetSession(const Session &session)
+{
+    for (std::map<std::string, Session>::iterator it = this->_sessions.begin(); it != this->_sessions.end(); ++it)
+    {
+        if (it->second.getTheId() == session.getTheId())
+        {
+            if (it->first != session.getId())
+            {
+                this->_sessions.erase(it);
+                this->_sessions[session.getId()] = session;
+            }
+            else
+                it->second = session;
+            return;
+        }
+    }
 }

@@ -1,8 +1,7 @@
 #include "network/ClientConnection.hpp"
 #include "utils/Utils.hpp"
 
-
-ClientConnection::ClientConnection(): AConnection(-1)
+ClientConnection::ClientConnection() : AConnection(-1)
 {
 	throw std::runtime_error("ClientConnection: Default constructor is not allowed");
 }
@@ -12,7 +11,7 @@ ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : AConnec
 	this->responseCount = 0;
 }
 
-ClientConnection::ClientConnection(const ClientConnection &other): AConnection(other)
+ClientConnection::ClientConnection(const ClientConnection &other) : AConnection(other)
 {
 	*this = other;
 }
@@ -226,19 +225,44 @@ void ClientConnection::addReadBuffer(const Buffer &buffer)
 	this->_lastActiveTime = time(NULL);
 }
 
+Session ClientConnection::addSession(const std::string &header)
+{
+	if (header.find("Cookie: ") != std::string::npos)
+	{
+		size_t cookieStart = header.find("Cookie: ");
+		size_t cookieEnd = header.find("\r\n", cookieStart);
+		std::string cookieStr = header.substr(cookieStart + 8, cookieEnd - (cookieStart + 8));
+
+		std::string id;
+		if (cookieStr.find("WebservSessionId=") != std::string::npos)
+		{
+			size_t idStart = cookieStr.find("WebservSessionId=") + 17;
+			size_t idEnd = cookieStr.find(";", idStart);
+			if (idEnd == std::string::npos)
+				idEnd = cookieStr.length();
+			id = cookieStr.substr(idStart, idEnd - idStart);
+		}
+		return this->_serverSocket->getAddSession(id);
+	}
+	return this->_serverSocket->getAddSession("");
+}
+
 void ClientConnection::handleRead()
 {
-	while (!this->_requestDataList.empty() && this->_requestDataList.front().complete) //request list control for simultaneous requests
+	while (!this->_requestDataList.empty() && this->_requestDataList.front().complete)
 	{
 		RequestParse request(this->_requestDataList.front().header);
 		request.setBodyPath(this->_requestDataList.front().bodyFilePath);
 		request.setClientMaxBodySize(this->_serverSocket->getConfig().getClientMaxBodySize());
 		request.setBodySize(this->_requestDataList.front().bodySize);
-		debugLogger("Request header:\n" + this->_requestDataList.front().header);
 		request.isValid();
+		Session session = addSession(this->_requestDataList.front().header);
 		const ServerConfig &selectedConfig = this->_serverSocket->getConfigForHost(getHostHeader(request.getHeaders()));
 		ResponseParse response(selectedConfig);
+    this->_serverSocket->compareAndSetSession(response.getSession());
+    this->_serverSocket->cleanSessions();
 		response.generateResponse(request);
+		this->_serverSocket->cleanSessions();
 		this->_closeAfterResponse = hasConnectionClose(request.getHeaders());
 		this->_responseDataList.push(response);
 		if (!this->_requestDataList.front().bodyFilePath.empty())
@@ -263,7 +287,6 @@ void ClientConnection::handleRead()
 	else
 		this->_state = READING;
 }
-
 
 void ClientConnection::addWriteBuffer(const Buffer &buffer)
 {
@@ -300,7 +323,7 @@ bool ClientConnection::shouldCloseAfterResponse() const
 	return this->_closeAfterResponse;
 }
 
-const ServerSocket* ClientConnection::getServerSocket() const
+const ServerSocket *ClientConnection::getServerSocket() const
 {
 	return this->_serverSocket;
 }
