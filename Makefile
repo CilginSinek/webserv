@@ -14,7 +14,8 @@ PARSER_SRCS=parser/Config.cpp \
 			parser/ServerConfig.cpp \
 			parser/Route.cpp core/ServerSocket.cpp  core/EventLoop.cpp \
 			parser/RequestParse.cpp parser/ResponseParse.cpp \
-			network/ClientConnection.cpp network/AConnection.cpp 
+			network/ClientConnection.cpp network/AConnection.cpp \
+			network/Session.cpp
 
 TEMP_DIR=./temp
 

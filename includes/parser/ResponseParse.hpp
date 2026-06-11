@@ -12,6 +12,7 @@
 #include "ServerConfig.hpp"
 #include "utils/Buffer.hpp"
 #include "utils/Utils.hpp"
+#include "network/Session.hpp"
 
 typedef struct sResData tResData;
 
@@ -27,6 +28,7 @@ private:
 	bool _hasBody;
 	std::string _bodyContent;
 	ssize_t sentSize;
+	Session _session;
 
 	void cgiExecute(const Route &selectedRoute, const Route &selectedCgiRoute, const RequestParse &requestParse, std::string requestingPath);
 	void autoindexExecute(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath);
@@ -38,7 +40,7 @@ private:
 	ResponseParse();
 	int checkBodySize(const std::string &filePath, size_t clientMaxBodySize);
 public:
-	ResponseParse(const ServerConfig &config);
+	ResponseParse(const ServerConfig &config, Session &session);
 	void setSentSize(ssize_t size);
 	ssize_t getSentSize() const;
 	const std::string &getHeader() const;
@@ -46,6 +48,7 @@ public:
 	bool hasBody() const;
 	bool isTemp() const;
 	const std::string &getBodyContent() const;
+	Session &getSession() const;
 	~ResponseParse();
 
 	void generateResponse(RequestParse &requestParse);

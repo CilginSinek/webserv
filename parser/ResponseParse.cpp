@@ -7,8 +7,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-ResponseParse::ResponseParse(const ServerConfig &config)
-	: _serverConfig(config)
+ResponseParse::ResponseParse(const ServerConfig &config, Session &session)
+	: _serverConfig(config), _session(session)
 {
 	this->_header.clear();
 	this->_bodyPath.clear();
@@ -27,9 +27,7 @@ void ResponseParse::handleUpload(std::string uploadPath, std::string bodyPath, t
 	debugLogger("Handling file upload: " + uploadPath);
 	std::ofstream uploadFile(uploadPath.c_str(), std::ios::binary);
 	if (!uploadFile.is_open())
-	{
 		return generateDefaultErrorPage(500, method);
-	}
 	std::ifstream bodyFile(bodyPath.c_str(), std::ios::binary);
 	if (!bodyFile.is_open())
 	{
@@ -39,11 +37,11 @@ void ResponseParse::handleUpload(std::string uploadPath, std::string bodyPath, t
 	uploadFile << bodyFile.rdbuf();
 	uploadFile.close();
 	bodyFile.close();
+	this->_session.updateLastAccessTime();
 	if (method == POST)
-		this->_header = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
+		this->_header = "HTTP/1.1 201 Created\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Length: 0\r\n\r\n";
 	else
-		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
-	debugLogger("File upload completed: " + uploadPath);
+		this->_header = "HTTP/1.1 200 OK\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Length: 0\r\n\r\n";
 }
 
 void ResponseParse::handleRemove(std::string filePath, t_method method)
@@ -54,12 +52,15 @@ void ResponseParse::handleRemove(std::string filePath, t_method method)
 		return generateDefaultErrorPage(403, method);
 	if (remove(filePath.c_str()) != 0)
 		return generateDefaultErrorPage(500, method);
-	this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+	this->_session.updateLastAccessTime();
+	this->_header = "HTTP/1.1 200 OK\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Length: 0\r\n\r\n";
 }
 
 void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 {
 	struct stat st;
+	this->_session.setData("last_error", ft_itos(errorCode));
+	this->_session.updateLastAccessTime();
 	if (_serverConfig.getErrorPages().find(errorCode) != _serverConfig.getErrorPages().end())
 	{
 		std::string errorPagePath = _serverConfig.getErrorPages().at(errorCode);
@@ -74,7 +75,7 @@ void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 				"</head><body><h1>" +
 				ft_itos(errorCode) +
 				" Error</h1><p>Sorry, an error occurred while processing your request.</p></body></html>";
-			std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
+			std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
 			this->_header = responseHeader;
 			if (method == HEAD)
 			{
@@ -86,7 +87,7 @@ void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 			this->_bodyContent = errorPage;
 			return;
 		}
-		std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(st.st_size) + "\r\n\r\n";
+		std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(st.st_size) + "\r\n\r\n";
 		this->_header = responseHeader;
 		if (method == HEAD)
 		{
@@ -106,7 +107,7 @@ void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 		"</head><body><h1>" +
 		ft_itos(errorCode) +
 		" Error</h1><p>Sorry, an error occurred while processing your request.</p></body></html>";
-	std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
+	std::string responseHeader = "HTTP/1.1 " + ft_itos(errorCode) + " Error\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(errorPage.size()) + "\r\n\r\n";
 	this->_header = responseHeader;
 	if (method == HEAD)
 	{
@@ -182,6 +183,43 @@ void ResponseParse::readCgiOutput(struct stat &st)
 		else
 			this->_header += headerContentL;
 	}
+	if (this->_header.find("Set-Cookie: ") == std::string::npos)
+	{
+		size_t headerEndPos = this->_header.find("\r\n\r\n");
+		std::string headerCookie = "Set-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\n";
+		if (headerEndPos != std::string::npos)
+			this->_header = this->_header.substr(0, headerEndPos) + "\r\n" + headerCookie + this->_header.substr(headerEndPos + 4);
+		else
+			this->_header += "\r\n" + headerCookie;
+	}
+	else
+	{
+		size_t cookiePos = this->_header.find("Set-Cookie: ");
+		size_t cookieEndPos = this->_header.find("\r\n", cookiePos);
+		std::string newCookie = "Set-Cookie: WebservSessionId=" + this->_session.getId() + ";";
+		if (cookieEndPos != std::string::npos)
+			this->_header = this->_header.substr(0, cookiePos) + newCookie + this->_header.substr(cookieEndPos);
+		else
+			this->_header = this->_header.substr(0, cookiePos) + newCookie;
+	}
+	std::string tmpHeader = this->_header;
+	size_t pos = 0;
+	while ((pos = tmpHeader.find("X-CGI-", pos)) != std::string::npos)
+	{
+		size_t equalPos = tmpHeader.find("=", pos);
+		size_t lineEnd = tmpHeader.find("\r\n", pos);
+		if (lineEnd == std::string::npos)
+			lineEnd = tmpHeader.length();
+		if (equalPos == std::string::npos || equalPos > lineEnd)
+		{
+			pos++;
+			continue;
+		}
+		std::string key = tmpHeader.substr(pos + 6, equalPos - (pos + 6));
+		std::string value = tmpHeader.substr(equalPos + 1, lineEnd - (equalPos + 1));
+		this->_session.setData(key, value);
+		pos = lineEnd;
+	}
 }
 
 void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selectedCgiRoute, const RequestParse &requestParse, std::string requestingPath)
@@ -229,6 +267,12 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 	envVars.push_back("REMOTE_ADDR=127.0.0.1");
 	envVars.push_back("REQUEST_URI=" + trim(requestParse.getPath()));
 	envVars.push_back("REDIRECT_STATUS=200");
+	const std::map<std::string, std::string> sessionData = this->_session.getAllData();
+	for (std::map<std::string, std::string>::const_iterator it = sessionData.begin(); it != sessionData.end(); ++it)
+	{
+		std::string envVar = normalizeEnv(it->first) + "=" + trim(it->second);
+		envVars.push_back(envVar);
+	}
 	std::string methodStr;
 	switch (requestParse.getMethod())
 	{
@@ -300,8 +344,7 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 	struct stat st;
 	if (stat(tempFilePath.c_str(), &st) == -1)
 		return generateDefaultErrorPage(500, requestParse.getMethod());
-	//* read cgi output from temp file and set only response "header attribute" with getline
-
+	this->_session.updateLastAccessTime();
 	readCgiOutput(st);
 	if (requestParse.getMethod() == HEAD)
 	{
@@ -354,7 +397,8 @@ void ResponseParse::autoindexExecute(const Route &selectedRoute, const RequestPa
 			html += "<li><a href=\"" + entryName + "\">" + entryName + "</a></li>";
 	}
 	html += "</ul></body></html>";
-	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(html.size()) + "\r\n\r\n";
+	std::string responseHeader = "HTTP/1.1 200 OK\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Type: text/html\r\nContent-Length: " + ft_itos(html.size()) + "\r\n\r\n";
+	this->_session.updateLastAccessTime();
 	closedir(dir);
 	if (requestParse.getMethod() == HEAD)
 	{
@@ -399,12 +443,13 @@ static std::string getContentType(const std::string &filePath)
 
 void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &requestParse, std::string requestingPath)
 {
+	this->_session.updateLastAccessTime();
 	if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
 	{
 		if (selectedRoute.isUpload())
 			handleUpload(selectedRoute.getRoot() + requestingPath, requestParse.getBodyPath(), requestParse.getMethod());
 		else
-			this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+			this->_header = "HTTP/1.1 200 OK\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Length: 0\r\n\r\n";
 		return;
 	}
 	if (requestParse.getMethod() == DELETE)
@@ -412,7 +457,7 @@ void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &re
 		if (selectedRoute.isUpload())
 			handleRemove(selectedRoute.getRoot() + requestingPath, requestParse.getMethod());
 		else
-			generateDefaultErrorPage(403, requestParse.getMethod());
+			this->_header = "HTTP/1.1 403 Forbidden\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Length: 0\r\n\r\n";
 		return;
 	}
 	if (requestingPath.empty() || requestingPath[0] != '/')
@@ -459,7 +504,7 @@ void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &re
 		if (std::find(acceptedTypes.begin(), acceptedTypes.end(), contentType) == acceptedTypes.end() && std::find(acceptedTypes.begin(), acceptedTypes.end(), "*/*") == acceptedTypes.end())
 			return generateDefaultErrorPage(406, requestParse.getMethod());
 	}
-	std::string responseHeader = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(fileStat.st_size) + "\r\n\r\n";
+	std::string responseHeader = "HTTP/1.1 200 OK\r\nSet-Cookie: WebservSessionId=" + this->_session.getId() + ";\r\nContent-Type: " + contentType + "\r\nContent-Length: " + ft_itos(fileStat.st_size) + "\r\n\r\n";
 	if (requestParse.getMethod() == HEAD)
 	{
 		this->_hasBody = false;
@@ -600,4 +645,10 @@ void ResponseParse::setSentSize(ssize_t size)
 ssize_t ResponseParse::getSentSize() const
 {
 	return this->sentSize;
+}
+
+
+Session &ResponseParse::getSession() const
+{
+	return this->_session;
 }
