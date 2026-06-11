@@ -57,6 +57,7 @@ void EventLoop::run()
 			else
 				handleClientEvent(events[i].data.fd, events[i].events); // EPOLLIN  EPOLLOUT EPOLLER EPOLLHUP
 		}
+		closeIdleConnections();
 	}
 }
 
@@ -82,9 +83,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 
 	if ((events & EPOLLERR) || (events & EPOLLHUP))
 	{
-		this->_connections.erase(fd);
-		removeConnection(fd);
-		close(fd);
+		closeConnection(fd);
 		return;
 	}
 	if (events & EPOLLIN)
@@ -103,9 +102,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 		}
 		else
 		{
-			this->_connections.erase(fd);
-			removeConnection(fd);
-			close(fd);
+			closeConnection(fd);
 		}
 	}
 	else if (events & EPOLLOUT)
@@ -122,9 +119,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 					ssize_t sent = send(fd, this->_connections[fd].getWriteBuffer().c_str(), this->_connections[fd].getWriteBuffer().size(), 0);
 					if (sent <= 0)
 					{
-						this->_connections.erase(fd);
-						removeConnection(fd);
-						close(fd);
+						closeConnection(fd);
 						return;
 					}
 					this->_connections[fd].setWriteBuffer(this->_connections[fd].getWriteBuffer().substr(sent));
@@ -156,9 +151,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 							{
 								if (res.isTemp())
 									std::remove(res.getBodyPath().c_str());
-								this->_connections.erase(fd);
-								removeConnection(fd);
-								close(fd);
+								closeConnection(fd);
 								return;
 							}
 							res.setSentSize(res.getSentSize() + std::min(bytesRead, static_cast<std::streamsize>(sent)));
@@ -174,6 +167,8 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 						this->_connections[fd].popCurrentResponseData();
 						if (this->_connections[fd].responseDataEmpty())
 							this->_connections[fd].setState(READING);
+						else
+							this->_connections[fd].setState(WRITING_HEADER);
 					}
 					else{
 						modifyConnection(fd, EPOLLOUT);
@@ -190,9 +185,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 							ssize_t sent = send(fd, bodyContent.c_str(), bodyContent.size(), 0);
 							if (sent <= 0)
 							{
-								this->_connections.erase(fd);
-								removeConnection(fd);
-								close(fd);
+								closeConnection(fd);
 								return;
 							}
 							bodyContent = bodyContent.substr(sent);
@@ -201,25 +194,35 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 					this->_connections[fd].popCurrentResponseData();
 					if (this->_connections[fd].responseDataEmpty())
 						this->_connections[fd].setState(READING);
+					else
+						this->_connections[fd].setState(WRITING_HEADER);
 				}
 				else
 				{
 					this->_connections[fd].popCurrentResponseData();
 					if (this->_connections[fd].responseDataEmpty())
 						this->_connections[fd].setState(READING);
+					else
+						this->_connections[fd].setState(WRITING_HEADER);
 				}
 			}
 		}
 
+		if (this->_connections.find(fd) == this->_connections.end())
+			return;
+		if (this->_connections[fd].responseDataEmpty() && this->_connections[fd].getState() == READING && this->_connections[fd].shouldCloseAfterResponse())
+		{
+			closeConnection(fd);
+			return;
+		}
+		if (!this->_connections[fd].responseDataEmpty() || this->_connections[fd].getState() == WRITING_HEADER || this->_connections[fd].getState() == WRITING_BODY)
+		{
+			modifyConnection(fd, EPOLLOUT);
+			return;
+		}
 		if (isKeepAlive)
 		{
 			modifyConnection(fd, EPOLLIN);
-		}
-		else
-		{
-			this->_connections.erase(fd);
-			removeConnection(fd);
-			close(fd);
 		}
 	}
 }
@@ -269,4 +272,25 @@ void EventLoop::removeConnection(int fd)
 {
 	if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, NULL) == -1)
 		std::cerr << "epoll_ctl (DEL) failed for fd: " << fd << std::endl;
+}
+
+void EventLoop::closeConnection(int fd)
+{
+	if (this->_connections.find(fd) != this->_connections.end())
+		this->_connections.erase(fd);
+	removeConnection(fd);
+	close(fd);
+}
+
+void EventLoop::closeIdleConnections()
+{
+	std::vector<int> toClose;
+
+	for (std::map<int, ClientConnection>::iterator it = _connections.begin(); it != _connections.end(); ++it)
+	{
+		if (it->second.isNeedToClose())
+			toClose.push_back(it->first);
+	}
+	for (std::vector<int>::iterator it = toClose.begin(); it != toClose.end(); ++it)
+		closeConnection(*it);
 }

@@ -22,6 +22,8 @@ public:
 	int		addConnection(int fd, u_int32_t events);
 	void	modifyConnection(int fd, u_int32_t events);
 	void	removeConnection(int fd);
+	void	closeConnection(int fd);
+	void	closeIdleConnections();
 	void	run();
 	void	handleServerSocket(ServerSocket *socket);
 	void	handleClientEvent(int fd, u_int32_t events);

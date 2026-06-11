@@ -30,6 +30,7 @@ private:
 	Buffer _writeBuffer;
 	ServerSocket *_serverSocket;
 	tConnectionState _state;
+	bool _closeAfterResponse;
 	//* debug
 	ssize_t responseCount;
 	time_t _lastActiveTime;
@@ -64,6 +65,8 @@ public:
 	void setState(tConnectionState state);
 	const Buffer &getWriteBuffer();
 	bool isNeedToClose() const;
+	void setCloseAfterResponse(bool close);
+	bool shouldCloseAfterResponse() const;
 	tConnectionState getState() const;
 
 	//* debug

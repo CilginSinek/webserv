@@ -7,7 +7,7 @@ ClientConnection::ClientConnection(): AConnection(-1)
 	throw std::runtime_error("ClientConnection: Default constructor is not allowed");
 }
 
-ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : AConnection(fd), _readBuffer(""), _writeBuffer(""), _serverSocket(serverSocket), _state(READING), _lastActiveTime(time(NULL))
+ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : AConnection(fd), _readBuffer(""), _writeBuffer(""), _serverSocket(serverSocket), _state(READING), _closeAfterResponse(false), _lastActiveTime(time(NULL))
 {
 	this->responseCount = 0;
 }
@@ -26,6 +26,7 @@ ClientConnection &ClientConnection::operator=(const ClientConnection &other)
 		this->_writeBuffer = other._writeBuffer;
 		this->_serverSocket = other._serverSocket;
 		this->_state = other._state;
+		this->_closeAfterResponse = other._closeAfterResponse;
 		this->_lastActiveTime = other._lastActiveTime;
 		this->responseCount = other.responseCount;
 	}
@@ -38,11 +39,28 @@ ClientConnection::~ClientConnection()
 
 bool ClientConnection::isNeedToClose() const
 {
-	if (this->_readBuffer.empty() && this->_writeBuffer.empty())
-		return true;
+	if (this->_state != READING)
+		return false;
+	if (!this->_readBuffer.empty() || !this->_writeBuffer.empty())
+		return false;
+	if (!this->_requestDataList.empty() || !this->_responseDataList.empty())
+		return false;
+	int timeout = this->_serverSocket->getConfig().getKeepaliveTimeout();
+	if (timeout <= 0)
+		return false;
 	time_t currentTime = time(NULL);
-	if (difftime(currentTime, this->_lastActiveTime) > this->_serverSocket->getConfig().getKeepaliveTimeout()) 
+	if (difftime(currentTime, this->_lastActiveTime) > timeout)
 		return true;
+	return false;
+}
+
+static bool hasConnectionClose(const std::map<std::string, std::string> &headers)
+{
+	for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
+	{
+		if (upperString(trim(it->first)) == "CONNECTION" && upperString(trim(it->second)) == "CLOSE")
+			return true;
+	}
 	return false;
 }
 
@@ -200,25 +218,38 @@ void ClientConnection::addReadBuffer(const Buffer &buffer)
 
 void ClientConnection::handleRead()
 {
-	if (this->_requestDataList.empty() || !this->_requestDataList.front().complete)
-		return;
-	RequestParse request(this->_requestDataList.front().header);
-	request.setBodyPath(this->_requestDataList.front().bodyFilePath);
-	request.setClientMaxBodySize(this->_serverSocket->getConfig().getClientMaxBodySize());
-	request.setBodySize(this->_requestDataList.front().bodySize);
-	debugLogger("Request header:\n" + this->_requestDataList.front().header);
-	ResponseParse response(this->_serverSocket->getConfig());
-	response.generateResponse(request);
-	this->_responseDataList.push(response);
-	this->_state = WRITING_HEADER;
-	if (!this->_requestDataList.front().bodyFilePath.empty())
+	while (!this->_requestDataList.empty() && this->_requestDataList.front().complete) //request list control for simultaneous requests
 	{
-		if (std::remove(this->_requestDataList.front().bodyFilePath.c_str()) != 0)
+		RequestParse request(this->_requestDataList.front().header);
+		request.setBodyPath(this->_requestDataList.front().bodyFilePath);
+		request.setClientMaxBodySize(this->_serverSocket->getConfig().getClientMaxBodySize());
+		request.setBodySize(this->_requestDataList.front().bodySize);
+		debugLogger("Request header:\n" + this->_requestDataList.front().header);
+		ResponseParse response(this->_serverSocket->getConfig());
+		response.generateResponse(request);
+		this->_closeAfterResponse = hasConnectionClose(request.getHeaders());
+		this->_responseDataList.push(response);
+		if (!this->_requestDataList.front().bodyFilePath.empty())
 		{
-			debugLogger("Failed to delete temporary file: " + this->_requestDataList.front().bodyFilePath);
+			if (std::remove(this->_requestDataList.front().bodyFilePath.c_str()) != 0)
+				debugLogger("Failed to delete temporary file: " + this->_requestDataList.front().bodyFilePath);
+		}
+		this->_requestDataList.pop();
+		if (this->_closeAfterResponse)
+		{
+			while (!this->_requestDataList.empty())
+			{
+				if (!this->_requestDataList.front().bodyFilePath.empty())
+					std::remove(this->_requestDataList.front().bodyFilePath.c_str());
+				this->_requestDataList.pop();
+			}
+			break;
 		}
 	}
-	this->_requestDataList.pop();
+	if (!this->_responseDataList.empty())
+		this->_state = WRITING_HEADER;
+	else
+		this->_state = READING;
 }
 
 
@@ -245,6 +276,16 @@ const Buffer &ClientConnection::getWriteBuffer()
 tConnectionState ClientConnection::getState() const
 {
 	return this->_state;
+}
+
+void ClientConnection::setCloseAfterResponse(bool close)
+{
+	this->_closeAfterResponse = close;
+}
+
+bool ClientConnection::shouldCloseAfterResponse() const
+{
+	return this->_closeAfterResponse;
 }
 
 const ServerSocket* ClientConnection::getServerSocket() const

@@ -3,6 +3,7 @@
 #include "core/EventLoop.hpp"
 #include <stdexcept>
 #include <csignal>
+#include <vector>
 
 static volatile sig_atomic_t g_shouldStop = 0;
 
@@ -13,7 +14,6 @@ static void handleShutdownSignal(int)
 
 int main(int argc, char const *argv[])
 {
-	EventLoop *event = NULL;
 	if (argc != 2)
 	{
 		std::cerr << "Usage: " << argv[0] << " [config_file]" << std::endl;
@@ -61,16 +61,21 @@ int main(int argc, char const *argv[])
 		std::string configPath = (argc == 2) ? argv[1] : "default.conf";
 		EventLoop event;
 		Config config(configPath);
-		ServerSocket socket(*config.getServers().begin());
+		std::vector<ServerSocket> sockets;
+		const std::vector<ServerConfig> &servers = config.getServers();
 
 		event.setStopSignal(&g_shouldStop);
-		socket.open(); // Soketi aç, bind ve listen işlemlerini yapsın
-		event.addServerSocket(&socket);
+		sockets.reserve(servers.size());
+		for (std::vector<ServerConfig>::const_iterator it = servers.begin(); it != servers.end(); ++it)
+		{
+			sockets.push_back(ServerSocket(*it));
+			sockets.back().open(); // Soketi aç, bind ve listen işlemlerini yapsın
+			event.addServerSocket(&sockets.back());
+		}
 		event.run();
 	}
 	catch (const std::exception &e)
 	{
-		delete event;
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;
 	}
