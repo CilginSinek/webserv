@@ -258,9 +258,9 @@ void ClientConnection::handleRead()
 		request.isValid();
 		Session session = addSession(this->_requestDataList.front().header);
 		const ServerConfig &selectedConfig = this->_serverSocket->getConfigForHost(getHostHeader(request.getHeaders()));
-		ResponseParse response(selectedConfig);
-    this->_serverSocket->compareAndSetSession(response.getSession());
-    this->_serverSocket->cleanSessions();
+		ResponseParse response(selectedConfig, session);
+		this->_serverSocket->compareAndSetSession(response.getSession());
+		this->_serverSocket->cleanSessions();
 		response.generateResponse(request);
 		this->_serverSocket->cleanSessions();
 		this->_closeAfterResponse = hasConnectionClose(request.getHeaders());
