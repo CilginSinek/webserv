@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 ResponseParse::ResponseParse(const ServerConfig &config)
 	: _serverConfig(config)
@@ -88,15 +89,18 @@ void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
 
 void ResponseParse::readCgiOutput(struct stat &st)
 {
-	char buffer[1024];
+	char buffer[4096];
 	ssize_t bytesRead;
 	std::ifstream bodyFile(this->_bodyPath.c_str(), std::ios::binary);
 	if (!bodyFile.is_open())
 		return;
 	std::string responseHeader;
-	while (bodyFile.read(buffer, sizeof(buffer)))
+	while (bodyFile)
 	{
+		bodyFile.read(buffer, sizeof(buffer));
 		bytesRead = bodyFile.gcount();
+		if (bytesRead <= 0)
+			break;
 		responseHeader.append(buffer, bytesRead);
 		size_t headerEndPos = responseHeader.find("\r\n\r\n");
 		if (headerEndPos != std::string::npos)
@@ -106,28 +110,31 @@ void ResponseParse::readCgiOutput(struct stat &st)
 			break;
 		}
 	}
-	if (bodyFile.eof())
+	bodyFile.close();
+	if (this->_header.empty() && !responseHeader.empty())
 	{
 		this->_header = responseHeader;
 		this->sentSize = responseHeader.size();
 	}
-	bodyFile.close();
+
 	if (this->_header.empty())
 	{
 		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+		this->sentSize = 0;
 	}
 	if (this->_header.compare(0, 5, "HTTP/") != 0)
 	{
 		std::string appendHeader = "HTTP/1.1";
-		if (responseHeader.find("Status: ") != std::string::npos)
+
+		size_t statusPos = this->_header.find("Status: ");
+		if (statusPos != std::string::npos)
 		{
-			size_t statusPos = responseHeader.find("Status: ") + 8;
-			size_t statusEndPos = responseHeader.find("\r\n", statusPos);
+			statusPos += 8;
+			size_t statusEndPos = this->_header.find("\r\n", statusPos);
 			if (statusEndPos != std::string::npos)
-			{
-				std::string statusCodeStr = responseHeader.substr(statusPos, statusEndPos - statusPos);
-				appendHeader += " " + statusCodeStr + " " + "OK";
-			}
+				appendHeader += " " + this->_header.substr(statusPos, statusEndPos - statusPos);
+			else
+				appendHeader += " 200 OK";
 		}
 		else
 			appendHeader += " 200 OK";
@@ -136,9 +143,12 @@ void ResponseParse::readCgiOutput(struct stat &st)
 	if (this->_header.find("Content-Length: ") == std::string::npos)
 	{
 		size_t headerEndPos = this->_header.find("\r\n\r\n");
-		std::string headerContentL = "\r\nContent-Length: " + ft_itos(st.st_size - this->sentSize) + "\r\n\r\n";
+		std::string headerContentL =
+			"\r\nContent-Length: " + ft_itos(st.st_size - this->sentSize) + "\r\n\r\n";
 		if (headerEndPos != std::string::npos)
-			this->_header = this->_header.substr(0, headerEndPos) + headerContentL + this->_header.substr(headerEndPos + 4);
+			this->_header = this->_header.substr(0, headerEndPos)
+				+ headerContentL
+				+ this->_header.substr(headerEndPos + 4);
 		else
 			this->_header += headerContentL;
 	}
@@ -215,13 +225,14 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 		env[i] = const_cast<char *>(envVars[i].c_str());
 
 	//* create temp file for cgi output
-	std::string tempFilePath = "./temp/cgi_output_" + ft_itos(time(NULL));
-	std::ofstream tempFile(tempFilePath.c_str(), std::ios::binary);
-	if (!tempFile.is_open())
+	char tempTemplate[] = "./temp/cgi_output_XXXXXX";
+	int tempFd = mkstemp(tempTemplate);
+	if (tempFd == -1)
 		return generateDefaultErrorPage(500, requestParse.getMethod());
+	std::string tempFilePath = tempTemplate;
+	close(tempFd);
 	this->_isTemp = true;
 	this->_bodyPath = tempFilePath;
-	tempFile.close();
 	pid_t pid = fork();
 	if (pid == -1)
 	{

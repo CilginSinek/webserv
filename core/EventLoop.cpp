@@ -73,7 +73,7 @@ void EventLoop::handleServerSocket(ServerSocket *socket)
 // control the three main event: connection error, client http request, http response
 void EventLoop::handleClientEvent(int fd, u_int32_t events)
 {
-	char buffer[1024];
+	char buffer[65536];
 	int bytes_read;
 	int isKeepAlive = 1;
 
@@ -86,15 +86,17 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 	}
 	if (events & EPOLLIN)
 	{
-		bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
+		bytes_read = recv(fd, buffer, sizeof(buffer), 0);
 		if (bytes_read > 0)
 		{
-			buffer[bytes_read] = '\0';
 			if (this->_connections[fd].getState() == READING)
-				this->_connections[fd].addReadBuffer(std::string(buffer));
+				this->_connections[fd].addReadBuffer(std::string(buffer, bytes_read));
 			if (this->_connections[fd].getState() == HANDLING)
 				this->_connections[fd].handleRead();
-			modifyConnection(fd, EPOLLOUT);
+			if (this->_connections[fd].getState() == WRITING_HEADER || this->_connections[fd].getState() == WRITING_BODY)
+				modifyConnection(fd, EPOLLOUT);
+			else
+				modifyConnection(fd, EPOLLIN);
 		}
 		else
 		{
@@ -130,7 +132,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 			{
 				if (!res.getBodyPath().empty())
 				{
-					char buffer[4096];
+					char buffer[65536];
 					std::ifstream bodyFile(res.getBodyPath().c_str(), std::ios::binary);
 					if (!bodyFile.is_open())
 					{
