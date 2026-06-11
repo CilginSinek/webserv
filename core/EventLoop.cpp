@@ -9,6 +9,38 @@
 #include <cstdio>
 #include <cstring>
 
+static bool hasHeader(const std::string &header, const std::string &headerName)
+{
+	size_t lineStart = 0;
+	std::string searched = upperString(headerName);
+
+	while (lineStart < header.size())
+	{
+		size_t lineEnd = header.find("\r\n", lineStart);
+		if (lineEnd == std::string::npos)
+			break;
+		std::string line = header.substr(lineStart, lineEnd - lineStart);
+		size_t colonPos = line.find(':');
+		if (colonPos != std::string::npos && upperString(trim(line.substr(0, colonPos))) == searched)
+			return true;
+		lineStart = lineEnd + 2;
+	}
+	return false;
+}
+
+static std::string addConnectionHeader(const std::string &header, bool closeAfterResponse)
+{
+	if (hasHeader(header, "Connection"))
+		return header;
+
+	size_t headerEnd = header.find("\r\n\r\n");
+	if (headerEnd == std::string::npos)
+		return header;
+
+	std::string connectionHeader = closeAfterResponse ? "Connection: close\r\n" : "Connection: keep-alive\r\n";
+	return header.substr(0, headerEnd + 2) + connectionHeader + header.substr(headerEnd + 2);
+}
+
 EventLoop::EventLoop(/* args */) : _stopSignal(NULL)
 {
 	epollFd = epoll_create(1);
@@ -113,7 +145,7 @@ void EventLoop::handleClientEvent(int fd, u_int32_t events)
 			if (this->_connections[fd].getState() == WRITING_HEADER)
 			{
 				debugLogger("Responsed fd:" + ft_itos(fd) + " path: " + res.getBodyPath());
-				this->_connections[fd].addWriteBuffer(res.getHeader());
+				this->_connections[fd].addWriteBuffer(addConnectionHeader(res.getHeader(), this->_connections[fd].shouldCloseAfterResponse()));
 				while (this->_connections[fd].getWriteBuffer().size() > 0)
 				{
 					ssize_t sent = send(fd, this->_connections[fd].getWriteBuffer().c_str(), this->_connections[fd].getWriteBuffer().size(), 0);

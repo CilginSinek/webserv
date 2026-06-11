@@ -12,6 +12,12 @@ static void handleShutdownSignal(int)
 	g_shouldStop = 1;
 }
 
+static bool sameListen(const ServerSocket &socket, const ServerConfig &server)
+{
+	return socket.getConfig().getServerIp() == server.getServerIp()
+		&& socket.getConfig().getPort() == server.getPort();
+}
+
 int main(int argc, char const *argv[])
 {
 	if (argc != 2)
@@ -68,9 +74,22 @@ int main(int argc, char const *argv[])
 		sockets.reserve(servers.size());
 		for (std::vector<ServerConfig>::const_iterator it = servers.begin(); it != servers.end(); ++it)
 		{
-			sockets.push_back(ServerSocket(*it));
-			sockets.back().open(); // Soketi aç, bind ve listen işlemlerini yapsın
-			event.addServerSocket(&sockets.back());
+			bool addedToExistingSocket = false;
+			for (std::vector<ServerSocket>::iterator socketIt = sockets.begin(); socketIt != sockets.end(); ++socketIt)
+			{
+				if (sameListen(*socketIt, *it))
+				{
+					socketIt->addServerConfig(*it);
+					addedToExistingSocket = true;
+					break;
+				}
+			}
+			if (!addedToExistingSocket)
+			{
+				sockets.push_back(ServerSocket(*it));
+				sockets.back().open(); // Soketi aç, bind ve listen işlemlerini yapsın
+				event.addServerSocket(&sockets.back());
+			}
 		}
 		event.run();
 	}
