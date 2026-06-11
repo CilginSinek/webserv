@@ -63,6 +63,16 @@ static bool hasConnectionClose(const std::map<std::string, std::string> &headers
 	return false;
 }
 
+static std::string getHostHeader(const std::map<std::string, std::string> &headers)
+{
+	for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
+	{
+		if (upperString(trim(it->first)) == "HOST")
+			return it->second;
+	}
+	return "";
+}
+
 ssize_t ClientConnection::getRequestSize(const Buffer &buffer) const
 {
 	if (buffer.find("\r\n\r\n") == std::string::npos)
@@ -245,9 +255,12 @@ void ClientConnection::handleRead()
 		request.setBodyPath(this->_requestDataList.front().bodyFilePath);
 		request.setClientMaxBodySize(this->_serverSocket->getConfig().getClientMaxBodySize());
 		request.setBodySize(this->_requestDataList.front().bodySize);
+		request.isValid();
 		Session session = addSession(this->_requestDataList.front().header);
-		ResponseParse response(this->_serverSocket->getConfig(), session);
-		this->_serverSocket->compareAndSetSession(response.getSession());
+		const ServerConfig &selectedConfig = this->_serverSocket->getConfigForHost(getHostHeader(request.getHeaders()));
+		ResponseParse response(selectedConfig);
+    this->_serverSocket->compareAndSetSession(response.getSession());
+    this->_serverSocket->cleanSessions();
 		response.generateResponse(request);
 		this->_serverSocket->cleanSessions();
 		this->_closeAfterResponse = hasConnectionClose(request.getHeaders());

@@ -8,9 +8,11 @@
 #include <cerrno>
 #include <stdexcept>
 #include <string>
+#include "utils/Utils.hpp"
 
-ServerSocket::ServerSocket(ServerConfig serverConfig) : _fd(-1), _config(serverConfig)
+ServerSocket::ServerSocket(ServerConfig serverConfig) : _fd(-1)
 {
+    _configs.push_back(serverConfig);
 }
 
 ServerSocket::~ServerSocket()
@@ -52,8 +54,8 @@ void ServerSocket::open()
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET; // ipv4
 
-    int port = _config.getPort();
-    const char *host_cstr = _config.getServerIp().c_str();
+    int port =  getConfig().getPort(); 
+    const char *host_cstr = getConfig().getServerIp().c_str();
 
     /* Turn port value into network byte order*/
     addr.sin_port = htons(port);
@@ -100,6 +102,11 @@ int ServerSocket::acceptClient()
     return client_fd;
 }
 
+void ServerSocket::addServerConfig(const ServerConfig &serverConfig)
+{
+    _configs.push_back(serverConfig);
+}
+
 void ServerSocket::close()
 {
     if (_fd != -1)
@@ -119,7 +126,23 @@ void ServerSocket::setNonBlocking(int fd)
 
 const ServerConfig &ServerSocket::getConfig() const
 {
-    return _config;
+    return _configs.front();
+}
+
+const ServerConfig& ServerSocket::getConfigForHost(const std::string &host) const
+{
+    std::string normalizedHost = trim(host);
+    size_t colonPos = normalizedHost.find(':');
+    if (colonPos != std::string::npos)
+        normalizedHost = normalizedHost.substr(0, colonPos);
+    normalizedHost = upperString(normalizedHost);
+
+    for (std::vector<ServerConfig>::const_iterator it = _configs.begin(); it != _configs.end(); ++it)
+    {
+        if (upperString(it->getServerName()) == normalizedHost)
+            return *it;
+    }
+    return getConfig();
 }
 
 int ServerSocket::getFd()
