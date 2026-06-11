@@ -10,6 +10,7 @@ class ServerSocket
 private:
     int _fd;
     std::map<std::string, Session> _sessions;
+    std::map<std::string, std::string> _theIdToSessionId;
     std::vector<ServerConfig> _configs;
 
 public:

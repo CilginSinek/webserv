@@ -9,8 +9,8 @@ Session::Session(const std::string &id): _the_id(generateId()), _id(id), _lastAc
 }
 
 Session::Session(const Session &other)
+	: _the_id(other._the_id), _id(other._id), _data(other._data), _lastAccessTime(other._lastAccessTime)
 {
-	*this = other;
 }
 
 Session &Session::operator=(const Session &other)

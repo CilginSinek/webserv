@@ -157,15 +157,15 @@ Session ServerSocket::getAddSession(const std::string &id)
     {
         Session newSession(Session::generateId());
         this->_sessions[newSession.getId()] = newSession;
+        this->_theIdToSessionId[newSession.getTheId()] = newSession.getId();
         return newSession;
     }
-    for (std::map<std::string, Session>::iterator it = this->_sessions.begin(); it != this->_sessions.end(); ++it)
-    {
-        if (it->first == id)
-            return it->second;
-    }
+    std::map<std::string, Session>::iterator it = this->_sessions.find(id);
+    if (it != this->_sessions.end())
+        return it->second;
     Session newSession(id);
     this->_sessions[id] = newSession;
+    this->_theIdToSessionId[newSession.getTheId()] = id;
     return newSession;
 }
 
@@ -180,24 +180,27 @@ void ServerSocket::cleanSessions()
     }
     for (std::vector<std::string>::iterator it = toRemove.begin(); it != toRemove.end(); ++it)
     {
+        std::map<std::string, Session>::iterator sit = this->_sessions.find(*it);
+        if (sit != this->_sessions.end())
+            this->_theIdToSessionId.erase(sit->second.getTheId());
         this->_sessions.erase(*it);
     }
 }
 
 void ServerSocket::compareAndSetSession(const Session &session)
 {
-    for (std::map<std::string, Session>::iterator it = this->_sessions.begin(); it != this->_sessions.end(); ++it)
+    std::map<std::string, std::string>::iterator rit = this->_theIdToSessionId.find(session.getTheId());
+    if (rit == this->_theIdToSessionId.end())
+        return;
+    std::string oldSessionId = rit->second;
+    if (oldSessionId != session.getId())
     {
-        if (it->second.getTheId() == session.getTheId())
-        {
-            if (it->first != session.getId())
-            {
-                this->_sessions.erase(it);
-                this->_sessions[session.getId()] = session;
-            }
-            else
-                it->second = session;
-            return;
-        }
+        this->_sessions.erase(oldSessionId);
+        this->_sessions[session.getId()] = session;
+        rit->second = session.getId();
+    }
+    else
+    {
+        this->_sessions[oldSessionId] = session;
     }
 }
