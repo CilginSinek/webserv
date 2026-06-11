@@ -104,8 +104,6 @@ bool RequestParse::setAndValidFLine(const std::string &firstLine)
 		this->_method = DELETE;
 	else if (method == "PUT")
 		this->_method = PUT;
-	else if (method == "TRACE")
-		this->_method = TRACE;
 	else if (method == "HEAD")
 		this->_method = HEAD;
 	else if (method == "OPTIONS")

@@ -28,6 +28,7 @@ Route &Route::operator=(const Route &other)
 		this->redirect = other.redirect;
 		this->clientMaxBodySize = other.clientMaxBodySize;
 		this->cgi = other.cgi;
+		this->upload = other.upload;
 	}
 	return *this;
 }

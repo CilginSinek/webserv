@@ -15,7 +15,6 @@ typedef enum Method
 	POST,
 	DELETE,
 	PUT,
-	TRACE,
 	HEAD,
 	OPTIONS
 } t_method;

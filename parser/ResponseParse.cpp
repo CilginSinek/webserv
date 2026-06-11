@@ -1,6 +1,3 @@
-//*TODO handle 413 error when client max body size is exceeded
-//*TODO handle envp for cgi execution
-
 #include "parser/ResponseParse.hpp"
 #include "network/ClientConnection.hpp"
 #include <sys/wait.h>
@@ -23,6 +20,41 @@ ResponseParse::ResponseParse(const ServerConfig &config)
 
 ResponseParse::~ResponseParse()
 {
+}
+
+void ResponseParse::handleUpload(std::string uploadPath, std::string bodyPath, t_method method)
+{
+	debugLogger("Handling file upload: " + uploadPath);
+	std::ofstream uploadFile(uploadPath.c_str(), std::ios::binary);
+	if (!uploadFile.is_open())
+	{
+		return generateDefaultErrorPage(500, method);
+	}
+	std::ifstream bodyFile(bodyPath.c_str(), std::ios::binary);
+	if (!bodyFile.is_open())
+	{
+		uploadFile.close();
+		return generateDefaultErrorPage(500, method);
+	}
+	uploadFile << bodyFile.rdbuf();
+	uploadFile.close();
+	bodyFile.close();
+	if (method == POST)
+		this->_header = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
+	else
+		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+	debugLogger("File upload completed: " + uploadPath);
+}
+
+void ResponseParse::handleRemove(std::string filePath, t_method method)
+{
+	if (access(filePath.c_str(), F_OK) == -1)
+		return generateDefaultErrorPage(404, method);
+	if (access(filePath.c_str(), W_OK) == -1)
+		return generateDefaultErrorPage(403, method);
+	if (remove(filePath.c_str()) != 0)
+		return generateDefaultErrorPage(500, method);
+	this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
 }
 
 void ResponseParse::generateDefaultErrorPage(int errorCode, t_method method)
@@ -146,9 +178,7 @@ void ResponseParse::readCgiOutput(struct stat &st)
 		std::string headerContentL =
 			"\r\nContent-Length: " + ft_itos(st.st_size - this->sentSize) + "\r\n\r\n";
 		if (headerEndPos != std::string::npos)
-			this->_header = this->_header.substr(0, headerEndPos)
-				+ headerContentL
-				+ this->_header.substr(headerEndPos + 4);
+			this->_header = this->_header.substr(0, headerEndPos) + headerContentL + this->_header.substr(headerEndPos + 4);
 		else
 			this->_header += headerContentL;
 	}
@@ -168,8 +198,17 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 		requestingPath += selectedRoute.getIndex();
 	std::string executeFilePath = selectedRoute.getRoot() + requestingPath;
 	if (endsWith(executeFilePath, selectedCgiRoute.getCgi().first) == false)
-		executeFilePath += selectedCgiRoute.getCgi().first;
-
+	{
+		if (selectedRoute.isUpload())
+		{
+			if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
+				return handleUpload(selectedRoute.getRoot() + requestingPath, requestParse.getBodyPath(), requestParse.getMethod());
+			else if (requestParse.getMethod() == DELETE)
+				return handleRemove(selectedRoute.getRoot() + requestingPath, requestParse.getMethod());
+		}
+		else
+			return serveFile(selectedRoute, requestParse, requestingPath);
+	}
 	std::vector<std::string> envVars;
 	for (std::map<std::string, std::string>::const_iterator it = requestParse.getHeaders().begin(); it != requestParse.getHeaders().end(); ++it)
 	{
@@ -204,9 +243,6 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 		break;
 	case PUT:
 		methodStr = "PUT";
-		break;
-	case TRACE:
-		methodStr = "TRACE";
 		break;
 	case HEAD:
 		methodStr = "HEAD";
@@ -353,6 +389,10 @@ static std::string getContentType(const std::string &filePath)
 		return "image/svg+xml";
 	else if (extension == "ico")
 		return "image/x-icon";
+	else if (extension == "txt")
+		return "text/plain";
+	else if (extension == "pdf")
+		return "application/pdf";
 	else
 		return "application/octet-stream";
 }
@@ -361,7 +401,18 @@ void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &re
 {
 	if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
 	{
-		this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+		if (selectedRoute.isUpload())
+			handleUpload(selectedRoute.getRoot() + requestingPath, requestParse.getBodyPath(), requestParse.getMethod());
+		else
+			this->_header = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+		return;
+	}
+	if (requestParse.getMethod() == DELETE)
+	{
+		if (selectedRoute.isUpload())
+			handleRemove(selectedRoute.getRoot() + requestingPath, requestParse.getMethod());
+		else
+			generateDefaultErrorPage(403, requestParse.getMethod());
 		return;
 	}
 	if (requestingPath.empty() || requestingPath[0] != '/')
@@ -400,6 +451,9 @@ void ResponseParse::serveFile(const Route &selectedRoute, const RequestParse &re
 		{
 			type.erase(type.find_last_not_of(" \t\r\n") + 1);
 			type.erase(0, type.find_first_not_of(" \t\r\n"));
+			size_t semicolonPos = type.find(';');
+			if (semicolonPos != std::string::npos)
+				type = type.substr(0, semicolonPos);
 			acceptedTypes.push_back(type);
 		}
 		if (std::find(acceptedTypes.begin(), acceptedTypes.end(), contentType) == acceptedTypes.end() && std::find(acceptedTypes.begin(), acceptedTypes.end(), "*/*") == acceptedTypes.end())
