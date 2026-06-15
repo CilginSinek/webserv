@@ -255,7 +255,8 @@ void ResponseParse::cgiExecute(const Route &selectedRoute, const Route &selected
 	if (requestParse.getMethod() == POST || requestParse.getMethod() == PUT)
 	{
 		envVars.push_back("CONTENT_LENGTH=" + ft_itos(requestParse.getBodySize()));
-		envVars.push_back("CONTENT_TYPE=" + requestParse.getHeaders().at("Content-Type"));
+		if (requestParse.getHeaders().find("Content-Type") != requestParse.getHeaders().end())
+			envVars.push_back("CONTENT_TYPE=" + requestParse.getHeaders().at("Content-Type"));
 	}
 	envVars.push_back("PATH_INFO=" + trim(requestParse.getPath()));
 	envVars.push_back("SCRIPT_NAME=" + trim(requestParse.getPath()));
