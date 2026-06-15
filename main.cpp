@@ -28,43 +28,9 @@ int main(int argc, char const *argv[])
 	signal(SIGPIPE, SIG_IGN); // Ignore SIGPIPE to prevent crashes when writing to closed sockets
 	signal(SIGINT, handleShutdownSignal);
 	signal(SIGTERM, handleShutdownSignal);
-	// if(argc == 2)
-	// {
-	// 	try
-	// 	{
-	// 		Config config(argv[1]);
-	// 		std::cout << "Config file '" << argv[1] << "' parsed successfully." << std::endl;
-	// 		configPrinter(config);
-	// 		std::cout << "Config file '" << argv[1] << "' printed successfully." << std::endl;
-	// 		config.checkConfigIsValid();
-	// 		std::cout << "Config file '" << argv[1] << "' is valid." << std::endl;
-	// 	}
-	// 	catch (const std::exception &e)
-	// 	{
-	// 		std::cerr << "Error: " << e.what() << std::endl;
-	// 		return 1;
-	// 	}
-	// }
-	// else
-	// {
-	// 	try
-	// 	{
-	// 		Config config;
-	// 		std::cout << "Default config created successfully." << std::endl;
-	// 		configPrinter(config);
-	// 		std::cout << "Default config printed successfully." << std::endl;
-	// 		config.checkConfigIsValid();
-	// 		std::cout << "Default config is valid." << std::endl;
-	// 	}
-	// 	catch (const std::exception &e)
-	// 	{
-	// 		std::cerr << "Error: " << e.what() << std::endl;
-	// 		return 1;
-	// 	}
-	// }
 	try
 	{
-		std::string configPath = (argc == 2) ? argv[1] : "default.conf";
+		std::string configPath = argv[1];
 		EventLoop event;
 		Config config(configPath);
 		std::vector<ServerSocket> sockets;
@@ -87,7 +53,7 @@ int main(int argc, char const *argv[])
 			if (!addedToExistingSocket)
 			{
 				sockets.push_back(ServerSocket(*it));
-				sockets.back().open(); // Soketi aç, bind ve listen işlemlerini yapsın
+				sockets.back().open();
 				event.addServerSocket(&sockets.back());
 			}
 		}

@@ -1,17 +1,17 @@
 #include "network/ClientConnection.hpp"
 #include "utils/Utils.hpp"
 
-ClientConnection::ClientConnection() : AConnection(-1)
+ClientConnection::ClientConnection() : _fd(-1)
 {
 	throw std::runtime_error("ClientConnection: Default constructor is not allowed");
 }
 
-ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : AConnection(fd), _readBuffer(""), _writeBuffer(""), _serverSocket(serverSocket), _state(READING), _closeAfterResponse(false), _lastActiveTime(time(NULL))
+ClientConnection::ClientConnection(int fd, ServerSocket *serverSocket) : _fd(fd), _readBuffer(""), _writeBuffer(""), _serverSocket(serverSocket), _state(READING), _closeAfterResponse(false), _lastActiveTime(time(NULL))
 {
 	this->responseCount = 0;
 }
 
-ClientConnection::ClientConnection(const ClientConnection &other) : AConnection(other)
+ClientConnection::ClientConnection(const ClientConnection &other) : _fd(other._fd), _readBuffer(other._readBuffer), _writeBuffer(other._writeBuffer), _serverSocket(other._serverSocket), _state(other._state), _closeAfterResponse(other._closeAfterResponse), _lastActiveTime(other._lastActiveTime)
 {
 	*this = other;
 }
@@ -20,7 +20,7 @@ ClientConnection &ClientConnection::operator=(const ClientConnection &other)
 {
 	if (this != &other)
 	{
-		AConnection::operator=(other);
+		this->_fd = other._fd;
 		this->_readBuffer = other._readBuffer;
 		this->_writeBuffer = other._writeBuffer;
 		this->_serverSocket = other._serverSocket;

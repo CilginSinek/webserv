@@ -1,5 +1,4 @@
 #include "utils/Buffer.hpp"
-#include "AConnection.hpp"
 #include "ServerSocket.hpp"
 #include "parser/RequestParse.hpp"
 #include "parser/ResponseParse.hpp"
@@ -23,15 +22,15 @@ typedef struct sReqData
 	bool complete;
 } tReqData;
 
-class ClientConnection: public AConnection
+class ClientConnection
 {
 private:
+	int _fd;
 	Buffer _readBuffer;
 	Buffer _writeBuffer;
 	ServerSocket *_serverSocket;
 	tConnectionState _state;
 	bool _closeAfterResponse;
-	//* debug
 	ssize_t responseCount;
 	time_t _lastActiveTime;
 	std::queue<tReqData> _requestDataList;
@@ -70,7 +69,6 @@ public:
 	bool shouldCloseAfterResponse() const;
 	tConnectionState getState() const;
 
-	//* debug
 	void setResponseCount(ssize_t count);
 	ssize_t getResponseCount() const;
 };

@@ -3,7 +3,7 @@ CXX=c++
 CXXFLAGS=-Wall -Wextra -Werror -std=c++98 -g -I includes
 SRCS=main.cpp $(PARSER_SRCS) $(UTILS_SRCS) $(CORE_SRCS) $(NETWORK_SRCS)
 OBJ_DIR=obj
-OBJS=$(addprefix $(OBJ_DIR)/,$(SRCS:.cpp=.o))
+OBJS=$(foreach src,$(SRCS),$(OBJ_DIR)/$(src:.cpp=.o))
 RM=rm -f
 RMDIR=rm -rf
 
@@ -15,8 +15,8 @@ PARSER_SRCS=parser/Config.cpp parser/ServerConfig.cpp \
 
 CORE_SRCS= core/EventLoop.cpp
 
-NETWORK_SRCS=network/ClientConnection.cpp network/AConnection.cpp \
-			network/Session.cpp network/ServerSocket.cpp
+NETWORK_SRCS=network/ClientConnection.cpp network/Session.cpp \
+			network/ServerSocket.cpp
 
 TEMP_DIR=./temp
 

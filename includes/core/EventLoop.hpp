@@ -1,9 +1,9 @@
 #include <map>
 #include <vector>
-#include "../network/ClientConnection.hpp"
-#include "../network/ServerSocket.hpp"
-#include "../parser/RequestParse.hpp"
-#include "../utils/Utils.hpp"
+#include "network/ClientConnection.hpp"
+#include "network/ServerSocket.hpp"
+#include "parser/RequestParse.hpp"
+#include "utils/Utils.hpp"
 #include <csignal>
 
 class EventLoop
@@ -14,7 +14,7 @@ private:
 	std::vector <ServerSocket *> _serverSockets;
 	volatile sig_atomic_t *_stopSignal;
 public:
-	EventLoop(/* args */);
+	EventLoop();
 	~EventLoop();
 
 	void	setStopSignal(volatile sig_atomic_t *stopSignal);

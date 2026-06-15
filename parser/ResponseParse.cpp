@@ -24,7 +24,6 @@ ResponseParse::~ResponseParse()
 
 void ResponseParse::handleUpload(std::string uploadPath, std::string bodyPath, t_method method)
 {
-	debugLogger("Handling file upload: " + uploadPath);
 	std::ofstream uploadFile(uploadPath.c_str(), std::ios::binary);
 	if (!uploadFile.is_open())
 		return generateDefaultErrorPage(500, method);
@@ -530,7 +529,6 @@ void ResponseParse::generateResponse(RequestParse &requestParse)
 {
 	//* check if the request is valid
 	int statusCode = requestParse.isValid();
-	debugLogger("Request validation status code: " + ft_itos(statusCode));
 	if (statusCode < 200 || statusCode >= 300)
 		return generateDefaultErrorPage(statusCode, requestParse.getMethod());
 	Route selectedRoute;
