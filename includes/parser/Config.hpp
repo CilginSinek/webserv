@@ -20,6 +20,5 @@ public:
 
 };
 
-void configPrinter(const Config &config);
 
 #endif
