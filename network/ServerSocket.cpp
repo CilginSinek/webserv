@@ -1,13 +1,16 @@
 #include "network/ServerSocket.hpp"
-#include <sys/socket.h> // socket() setsockopt() bind() listen() accept()
-#include <netinet/in.h> // sockaddr_i AF_INEY INADDR_ANY htons()
-#include <arpa/inet.h>  // inet_pton()
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>      // getaddrinfo, freeaddrinfo, gai_strerror, addrinfo
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
 #include <cerrno>
 #include <stdexcept>
 #include <string>
+#include <sstream>      // std::ostringstream
+
 #include "utils/Utils.hpp"
 
 ServerSocket::ServerSocket(ServerConfig serverConfig) : _fd(-1)
@@ -28,44 +31,73 @@ void ServerSocket::open()
     if (_fd != -1)
         return;
 
-    _fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    int port = getConfig().getPort();
+    std::string host = getConfig().getServerIp();
+
+    std::ostringstream oss;
+    oss << port;
+    std::string port_str = oss.str();
+
+    struct addrinfo hints;
+    struct addrinfo *res = NULL;
+    struct addrinfo *p = NULL;
+
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;        // IPv4
+    hints.ai_socktype = SOCK_STREAM;  // TCP
+    hints.ai_flags = AI_PASSIVE;
+
+    const char *host_cstr = NULL;
+
+    if (!host.empty() && host != "0.0.0.0")
+        host_cstr = host.c_str();
+
+    int status = getaddrinfo(host_cstr, port_str.c_str(), &hints, &res);
+    if (status != 0)
+        throw std::runtime_error(std::string("getaddrinfo() failed: ") + gai_strerror(status));
+
+    int saved_errno = 0;
+
+    for (p = res; p != NULL; p = p->ai_next)
+    {
+        _fd = ::socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (_fd == -1)
+        {
+            saved_errno = errno;
+            continue;
+        }
+
+        int opt = 1;
+        if (setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+        {
+            saved_errno = errno;
+            ::close(_fd);
+            _fd = -1;
+            continue;
+        }
+
+        if (bind(_fd, p->ai_addr, p->ai_addrlen) == -1)
+        {
+            saved_errno = errno;
+            ::close(_fd);
+            _fd = -1;
+            continue;
+        }
+
+        break;
+    }
+
+    freeaddrinfo(res);
+
     if (_fd == -1)
-        throw std::runtime_error(std::string("socket() failed: ") + std::strerror(errno));
+        throw std::runtime_error(std::string("bind/socket failed: ") + std::strerror(saved_errno));
 
-    int opt = 1;
-    if (setsockopt(_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
-    {
-        ::close(_fd);
-        _fd = -1;
-        throw std::runtime_error(std::string("setsockopt() failed: ") + std::strerror(errno));
-    }
-
-    struct sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET; // ipv4
-
-    int port =  getConfig().getPort(); 
-    const char *host_cstr = getConfig().getServerIp().c_str();
-
-    /* Turn port value into network byte order*/
-    addr.sin_port = htons(port);
-    if (inet_pton(AF_INET, host_cstr, &addr.sin_addr) != 1)
-    {
-        ::close(_fd);
-        _fd = -1;
-        throw std::runtime_error("invalid listen address");
-    }
-    if (bind(_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1) // ?
-    {
-        ::close(_fd);
-        _fd = -1;
-        throw std::runtime_error(std::string("bind() failed: ") + std::strerror(errno));
-    }
     if (listen(_fd, SOMAXCONN) == -1)
     {
+        saved_errno = errno;
         ::close(_fd);
         _fd = -1;
-        throw std::runtime_error(std::string("listen() failed: ") + std::strerror(errno));
+        throw std::runtime_error(std::string("listen() failed: ") + std::strerror(saved_errno));
     }
 
     setNonBlocking(_fd);
